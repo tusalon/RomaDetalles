@@ -1,0 +1,9 @@
+{
+  "appId": "com.romadetalles.admin",
+  "appName": "RomaDetalles Admin",
+  "webDir": "www-shell",
+  "server": {
+    "url": "https://tusalon.github.io/RomaDetalles/admin-login.html",
+    "cleartext": false
+  }
+}

@@ -1,0 +1,48 @@
+name: Build Android Admin APK
+
+# Caparazón delgado de Capacitor (server.url → GitHub Pages), no una
+# copia empaquetada del panel. Por eso este workflow solo necesita
+# correr cuando cambia la configuración nativa (capacitor.config.json,
+# android/), no en cada push al panel web — el panel real vive en
+# GitHub Pages y le llega solo a la app instalada.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - 'capacitor.config.json'
+      - 'www-shell/**'
+      - '.github/workflows/build-android-admin-apk.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Instalar dependencias de Capacitor
+        run: npm install --no-save @capacitor/core @capacitor/cli @capacitor/android
+
+      - name: Sincronizar el proyecto Android
+        run: npx cap sync android
+
+      - name: Compilar APK debug
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: romadetalles-admin-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
