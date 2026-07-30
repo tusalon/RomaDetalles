@@ -28,7 +28,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
 
       - name: Instalar dependencias de Capacitor
         run: npm install --no-save @capacitor/core @capacitor/cli @capacitor/android
