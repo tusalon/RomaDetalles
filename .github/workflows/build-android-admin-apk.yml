@@ -15,6 +15,9 @@ on:
       - '.github/workflows/build-android-admin-apk.yml'
   workflow_dispatch:
 
+permissions:
+  contents: write # necesario para publicar/actualizar el Release con el APK
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -42,7 +45,26 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug
 
+      - name: Preparar el archivo para descargar
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk romadetalles-admin.apk
+
       - uses: actions/upload-artifact@v4
         with:
           name: romadetalles-admin-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: romadetalles-admin.apk
+
+      # Enlace PÚBLICO y permanente (no expira como el artifact de arriba,
+      # y no exige iniciar sesión en GitHub para descargar) — este es el
+      # que se manda a las clientas en el mensaje de bienvenida.
+      - name: Publicar como Release descargable
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: admin-apk
+          name: Panel Admin — APK
+          body: >
+            APK del panel de administración de RomaDetalles. Este Release
+            se reemplaza automáticamente en cada build — siempre tiene la
+            versión más reciente del caparazón. El panel en sí (Reservas,
+            Artículos, etc.) vive en GitHub Pages y no requiere reinstalar
+            la app para actualizarse.
+          files: romadetalles-admin.apk
