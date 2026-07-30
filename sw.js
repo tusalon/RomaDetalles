@@ -7,13 +7,14 @@
 // y el `?v=` de ese archivo en los HTML. Si no, los teléfonos siguen
 // sirviendo la versión vieja de la caché y el cambio no llega. Es el mismo
 // problema que ya conoces de rservasroma.
-const CACHE_NAME = 'romadetalles-v1';
+const CACHE_NAME = 'romadetalles-v2';
 
 // Solo lo que de verdad conviene precargar. Las fotos de productos viven en
 // Cloudinary (CDN) y no se cachean aquí: son grandes y cambian seguido.
 const PRECARGA = [
     'index.html',
     'styles.css',
+    'fonts/Fraunces-variable.woff2',
     'utils/supabase-config.js',
     'utils/storage.js',
     'vendor/react.production.min.js',

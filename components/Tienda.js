@@ -278,17 +278,12 @@ function Tienda() {
                     <p className="eyebrow">Decora · celebra · recuerda</p>
                     <h1>{negocio.titulo_bienvenida}</h1>
                     <p className="intro">{negocio.texto_bienvenida}</p>
-                    <div className="hero-buttons">
-                        <a className="primary" href="#catalogo">Explorar catálogo →</a>
-                        <a className="secondary" href="#como">¿Cómo funciona?</a>
-                    </div>
-                    <p className="benefits">
-                        Reserva por días <i>•</i> Combina productos <i>•</i> Pedido por WhatsApp
-                    </p>
-                </div>
-                <div className="hero-visual">
-                    <img src="images/hero-evento.png" alt="Decoración elegante para eventos" />
-                    <div className="date-card" id="fechas">
+
+                    {/* El producto real de un alquiler es esta pregunta, no una foto:
+                        "¿está libre lo que quiero, en la fecha que quiero?". Por eso
+                        va primero, en el flujo normal de la página, no flotando sobre
+                        una imagen con márgenes negativos. */}
+                    <div className="hero-check" id="fechas">
                         <div className="date-title">
                             <span>◫</span>
                             <div>
@@ -320,6 +315,17 @@ function Tienda() {
                             <p className="available">● Revisado · {dias} {dias === 1 ? 'día' : 'días'}</p>
                         )}
                     </div>
+
+                    <div className="hero-buttons">
+                        <a className="primary" href="#catalogo">Explorar catálogo →</a>
+                        <a className="secondary" href="#como">¿Cómo funciona?</a>
+                    </div>
+                    <p className="benefits">
+                        Reserva por días <i>•</i> Combina productos <i>•</i> Pedido por WhatsApp
+                    </p>
+                </div>
+                <div className="hero-visual">
+                    <img src="images/hero-evento.png" alt="Decoración elegante para eventos" />
                 </div>
             </section>
 
@@ -356,8 +362,11 @@ function Tienda() {
                                 {filtrados.map((producto) => {
                                     const disp = disponibleDe(producto);
                                     const agotado = dias > 0 && disp < 1;
+                                    // El catálogo está "en reposo" hasta que se eligen
+                                    // fechas: recién ahí tiene sentido decir libre/reservado.
+                                    const estado = dias === 0 ? '' : (agotado ? 'agotado' : 'libre');
                                     return (
-                                        <article className="product-card" key={producto.id}>
+                                        <article className={`product-card ${estado}`} key={producto.id}>
                                             <div className="product-image">
                                                 <img src={producto.foto_url || 'images/producto-arco.png'}
                                                     alt={producto.nombre} loading="lazy" />

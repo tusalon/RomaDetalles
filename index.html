@@ -9,7 +9,10 @@
 
     <link rel="icon" href="icons/icon-192x192.png">
     <link rel="apple-touch-icon" href="icons/icon-192x192.png">
-    <link rel="stylesheet" href="styles.css?v=20260730-1">
+    <!-- El panel (admin.html) no la precarga: ahí los títulos usan la
+         fuente del sistema, así que el navegador nunca la pediría. -->
+    <link rel="preload" href="fonts/Fraunces-variable.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="styles.css?v=20260730-2">
 
     <script src="vendor/react.production.min.js"></script>
     <script src="vendor/react-dom.production.min.js"></script>
