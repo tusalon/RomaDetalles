@@ -158,7 +158,9 @@ function Tienda() {
             ...actual,
             [producto.id]: Math.min(disponibleDe(producto), (actual[producto.id] || 0) + 1)
         }));
-        setCajonAbierto(true);
+        // A propósito NO abre el cajón: la clienta sigue viendo el catálogo
+        // y elige varios artículos seguidos. El cajón se abre solo cuando
+        // ella misma pulsa "Continuar" en la barra flotante.
     }
 
     function quitar(producto) {
@@ -269,6 +271,11 @@ function Tienda() {
                     <a href="#como">Cómo funciona</a>
                 </nav>
                 <button className="cart-trigger" onClick={() => setCajonAbierto(true)}>
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+                        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" />
+                        <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+                    </svg>
                     Mi pedido <b>{totalArticulos}</b>
                 </button>
             </header>
@@ -425,6 +432,13 @@ function Tienda() {
                     {negocio.facebook_url && <a href={negocio.facebook_url} target="_blank" rel="noopener">Facebook</a>}
                 </div>
             </footer>
+
+            {totalArticulos > 0 && !cajonAbierto && (
+                <button className="continuar-barra" onClick={() => setCajonAbierto(true)}>
+                    <span>{totalArticulos} {totalArticulos === 1 ? 'artículo' : 'artículos'} · {dinero(totalDiario * dias)} {moneda}</span>
+                    <b>Continuar →</b>
+                </button>
+            )}
 
             {cajonAbierto && (
                 <button className="overlay" aria-label="Cerrar" onClick={() => setCajonAbierto(false)} />

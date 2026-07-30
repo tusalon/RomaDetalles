@@ -73,8 +73,16 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
 .brand > span, .brand > i { align-items: center; background: linear-gradient(135deg,var(--coral),var(--purple)); border-radius: 50%; color: white; display: flex; font-family: var(--sans); font-size: 18px; font-style: normal; height: 38px; justify-content: center; width: 38px; }
 .header nav { display: flex; gap: 42px; }
 .header nav a { font-size: 14px; font-weight: 700; }
-.cart-trigger { background: var(--burgundy); border: 0; border-radius: 999px; color: white; cursor: pointer; justify-self: end; padding: 8px 8px 8px 18px; }
+.cart-trigger { align-items:center; background: var(--burgundy); border: 0; border-radius: 999px; color: white; cursor: pointer; display:flex; gap:9px; justify-self: end; padding: 8px 8px 8px 18px; }
+.cart-trigger svg { flex-shrink:0; }
 .cart-trigger b { align-items:center; background: var(--coral); border-radius:50%; display:inline-flex; height:30px; justify-content:center; margin-left:8px; min-width:30px; }
+
+/* Barra flotante "Continuar": aparece al elegir el primer artículo, para
+   que la clienta pueda seguir agregando sin que el cajón le tape el
+   catálogo en cada clic. */
+.continuar-barra { align-items:center; background:var(--burgundy); border:0; border-radius:999px; bottom:22px; box-shadow:0 14px 34px rgba(53,27,38,.32); cursor:pointer; display:flex; gap:18px; justify-content:space-between; left:50%; padding:14px 10px 14px 22px; position:fixed; transform:translateX(-50%); width:min(420px, calc(100% - 32px)); z-index:40; }
+.continuar-barra span { color:rgba(255,255,255,.85); font-size:12px; font-weight:700; }
+.continuar-barra b { background:white; border-radius:999px; color:var(--burgundy); font-size:12px; font-weight:800; padding:10px 16px; white-space:nowrap; }
 
 .hero { align-items: center; display:grid; gap: clamp(42px,5vw,78px); grid-template-columns: 1.1fr 1fr; min-height: calc(100vh - 86px); padding-block: 62px 92px; }
 .eyebrow { color: var(--burgundy); font-size: 11px; font-weight: 800; letter-spacing: .2em; margin: 0 0 20px; text-transform: uppercase; }
@@ -287,6 +295,13 @@ h1,h2,h3,p { text-wrap: pretty; }
 .producto-form-acciones button.apagar { background:transparent; border:1px solid var(--border); color:var(--muted); }
 .producto-disponible-ahora { color:var(--libre); font-size:11px; font-weight:700; margin:0; }
 
+/* --- Reserva manual (admin) ------------------------------------------ */
+.reserva-manual-items { border:1px solid var(--border); border-radius:8px; margin-top:6px; max-height:260px; overflow-y:auto; }
+.reserva-manual-item { align-items:center; border-bottom:1px solid var(--border); display:flex; gap:10px; justify-content:space-between; padding:10px 12px; }
+.reserva-manual-item:last-child { border-bottom:0; }
+.reserva-manual-item span { color:var(--ink); font-size:13px; }
+.reserva-manual-item input { margin-top:0; min-height:38px; text-align:center; width:64px; }
+
 /* --- Logo del negocio ------------------------------------------------ */
 .logo-picker { align-items:center; display:flex; gap:14px; margin-top:6px; }
 .logo-preview { background:#f8f5f2; border:1px solid var(--border); border-radius:10px; height:56px; object-fit:contain; padding:4px; width:56px; }
@@ -299,5 +314,5 @@ h1,h2,h3,p { text-wrap: pretty; }
 @media(max-width:800px){.section-head{align-items:start;flex-direction:column}.steps{grid-template-columns:1fr}.footer{grid-template-columns:1fr}.footer p{text-align:left}}
 @media(max-width:900px){.admin-shell{grid-template-columns:1fr}.admin-nav{border-bottom:1px solid var(--border);border-right:0;flex-direction:row;overflow-x:auto;padding:15px 20px}.admin-nav button,.admin-nav a{flex:0 0 auto}.admin-nav a{margin-top:0}.admin-product{grid-template-columns:100px 1fr}.admin-product>img{height:100px;width:100px}.product-admin-actions{flex-direction:row;grid-column:1/-1}.admin-order{grid-template-columns:1fr 1fr}.settings-form{grid-template-columns:1fr}.settings-form label.wide{grid-column:auto}}
 @media(max-width:560px){.header{height:72px;padding-inline:16px}.brand{font-size:24px}.brand>span{height:33px;width:33px}.cart-trigger{font-size:0;padding-left:10px}.cart-trigger b{font-size:12px}.shell{padding-inline:17px}.hero{padding-top:42px}.hero h1{font-size:44px}.hero-check{padding:16px}.hero-buttons{align-items:stretch;flex-direction:column}.hero-visual,.hero-visual>img{min-height:280px;height:280px}.hero-visual>img{border-radius:21px}.dates{grid-template-columns:1fr}.section-head h2,.center-head h2{font-size:44px}.filters{flex-wrap:nowrap;margin-inline:-17px;overflow-x:auto;padding-inline:17px}.filters button{flex:0 0 auto}.product-grid{grid-template-columns:1fr}.drawer{width:100%}}
-@media(max-width:560px){.admin-header{align-items:flex-start;gap:15px}.admin-header .brand{font-size:22px}.admin-user{font-size:10px}.admin-content{padding-inline:15px}.admin-title{align-items:flex-start;flex-direction:column;gap:15px}.admin-title h1{font-size:44px}.admin-product{grid-template-columns:1fr}.admin-product>img{height:200px;width:100%}.product-fields>div{grid-template-columns:1fr}.admin-order{grid-template-columns:1fr}.product-admin-actions{flex-wrap:wrap}.producto-form{padding:16px}.producto-form-fila{grid-template-columns:1fr}}
+@media(max-width:560px){.admin-header{align-items:flex-start;gap:15px}.admin-header .brand{font-size:22px}.admin-user{font-size:10px}.admin-content{padding-inline:15px}.admin-title{align-items:flex-start;flex-direction:column;gap:15px}.admin-title h1{font-size:24px}.admin-product{grid-template-columns:1fr}.admin-product>img{height:200px;width:100%}.product-fields>div{grid-template-columns:1fr}.admin-order{grid-template-columns:1fr}.product-admin-actions{flex-wrap:wrap}.producto-form{padding:16px}.producto-form-fila{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}

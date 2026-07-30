@@ -60,6 +60,23 @@ function armarMensajeConfirmacion(plantilla, pedido, moneda) {
         .replaceAll('{total}', total);
 }
 
+// Traduce el error crudo de Postgres (que llega como "42501: {...}" o
+// "409: ...SIN_STOCK:Nombre...") a algo que el admin entienda, igual que
+// hace la Edge Function crear-pedido-alquiler para la clienta.
+function mensajeDeErrorReserva(error) {
+    const texto = String(error?.message || error || '');
+    if (texto.includes('SIN_STOCK')) {
+        const nombre = texto.split('SIN_STOCK:')[1]?.split('\n')[0]?.trim();
+        return nombre ? `${nombre} no tiene stock suficiente en esas fechas.` : 'No hay stock suficiente en esas fechas.';
+    }
+    if (texto.includes('PERIODO_INVALIDO')) return 'El período de fechas no es válido.';
+    if (texto.includes('PEDIDO_VACIO')) return 'Elige al menos un artículo.';
+    if (texto.includes('PRODUCTO_NO_EXISTE')) return 'Uno de los artículos ya no existe.';
+    if (texto.includes('NO_AUTORIZADO')) return 'No tienes permiso para crear reservas en este negocio.';
+    console.error('[Panel] error de reserva no reconocido:', texto);
+    return 'No se pudo crear la reserva. Inténtalo de nuevo.';
+}
+
 // ---------------------------------------------------------------------
 // Tarjeta de avisos push
 // ---------------------------------------------------------------------
@@ -162,6 +179,8 @@ function Panel({ negocioInicial, email }) {
     const [subiendoLogo, setSubiendoLogo] = useState(false);
     const [productoNuevo, setProductoNuevo] = useState(null);
     const [creandoProducto, setCreandoProducto] = useState(false);
+    const [reservaManual, setReservaManual] = useState(null);
+    const [creandoReserva, setCreandoReserva] = useState(false);
 
     const moneda = negocio.moneda || 'CUP';
 
@@ -240,6 +259,7 @@ function Panel({ negocioInicial, email }) {
                         facebook_url: negocio.facebook_url,
                         logo_url: negocio.logo_url || '',
                         plantilla_confirmacion: negocio.plantilla_confirmacion || '',
+                        plantilla_compartir: negocio.plantilla_compartir || '',
                         dias_minimos: Math.max(1, Number(negocio.dias_minimos) || 1),
                         actualizado_en: new Date().toISOString()
                     })
@@ -422,6 +442,86 @@ function Panel({ negocioInicial, email }) {
     }
 
     const enlaceTienda = `index.html?s=${encodeURIComponent(negocio.slug)}`;
+    const enlaceTiendaCompleto =
+        `${window.location.origin}${window.location.pathname.replace(/admin\.html$/, '')}index.html?s=${negocio.slug}`;
+
+    // ---- Compartir tienda ----------------------------------------------
+    async function compartirTienda() {
+        const mensaje = (negocio.plantilla_compartir || '¡Mira mi tienda! {enlace}')
+            .replaceAll('{nombre}', negocio.nombre || '')
+            .replaceAll('{enlace}', enlaceTiendaCompleto);
+
+        // navigator.share abre el selector nativo del teléfono (WhatsApp,
+        // Instagram, lo que tenga instalado) — es justo lo que se pidió,
+        // en vez de armar un enlace fijo a una sola red.
+        if (navigator.share) {
+            try {
+                await navigator.share({ text: mensaje });
+                return;
+            } catch (e) {
+                if (e?.name === 'AbortError') return; // la dueña canceló, no es error
+                console.warn('[Panel] navigator.share falló, usando respaldo:', e);
+            }
+        }
+        // Respaldo (escritorio o navegadores sin Web Share API): abre
+        // WhatsApp sin un contacto fijo, así la dueña elige a quién mandarlo.
+        window.open(`https://wa.me/?text=${encodeURIComponent(mensaje)}`, '_blank');
+    }
+
+    // ---- Reserva manual (clienta sin internet) -------------------------
+    function abrirReservaManual() {
+        setReservaManual({ cliente_nombre: '', cliente_telefono: '', notas: '', fecha_inicio: '', fecha_fin: '', items: {} });
+    }
+
+    function cancelarReservaManual() {
+        setReservaManual(null);
+    }
+
+    function cambiarCantidadReserva(productoId, cantidad) {
+        setReservaManual((actual) => {
+            const items = { ...actual.items };
+            if (cantidad <= 0) delete items[productoId];
+            else items[productoId] = cantidad;
+            return { ...actual, items };
+        });
+    }
+
+    async function crearReservaManual(evento) {
+        evento.preventDefault();
+        if (!reservaManual.cliente_nombre.trim()) {
+            notificar('Ponle un nombre a la clienta.');
+            return;
+        }
+        if (!reservaManual.fecha_inicio || !reservaManual.fecha_fin) {
+            notificar('Elige las fechas del alquiler.');
+            return;
+        }
+        const items = Object.entries(reservaManual.items).map(([producto_id, cantidad]) => ({ producto_id, cantidad }));
+        if (!items.length) {
+            notificar('Elige al menos un artículo.');
+            return;
+        }
+
+        setCreandoReserva(true);
+        try {
+            const pedido = await window.supaRpc('alquiler_crear_pedido_manual', {
+                p_negocio: negocio.id,
+                p_nombre: reservaManual.cliente_nombre.trim(),
+                p_telefono: reservaManual.cliente_telefono.trim(),
+                p_notas: reservaManual.notas.trim(),
+                p_inicio: reservaManual.fecha_inicio,
+                p_fin: reservaManual.fecha_fin,
+                p_items: items
+            });
+            setReservaManual(null);
+            notificar(`Reserva ${pedido.id} creada y confirmada.`);
+            cargarPedidos();
+        } catch (e) {
+            notificar(mensajeDeErrorReserva(e));
+        } finally {
+            setCreandoReserva(false);
+        }
+    }
 
     return (
         <main className="admin">
@@ -452,6 +552,7 @@ function Panel({ negocioInicial, email }) {
                     <button className={pestana === 'config' ? 'active' : ''}
                         onClick={() => setPestana('config')}>Configuración</button>
                     <a href={enlaceTienda}>Ver mi tienda ↗</a>
+                    <button onClick={compartirTienda}>Compartir tienda</button>
                 </aside>
 
                 <section className="admin-content">
@@ -465,8 +566,71 @@ function Panel({ negocioInicial, email }) {
                                     <p className="eyebrow">Agenda y disponibilidad</p>
                                     <h1>Reservas</h1>
                                 </div>
-                                <button onClick={cargarPedidos}>Actualizar</button>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    {!reservaManual && (
+                                        <button onClick={abrirReservaManual}>+ Reserva manual</button>
+                                    )}
+                                    <button onClick={cargarPedidos}>Actualizar</button>
+                                </div>
                             </div>
+
+                            {reservaManual && (
+                                <form className="admin-card producto-form" onSubmit={crearReservaManual}>
+                                    <h3>Reserva manual</h3>
+                                    <p className="producto-form-nota">
+                                        Para una clienta que acordó todo en persona o por teléfono, sin
+                                        pasar por la tienda. Queda confirmada de una vez.
+                                    </p>
+                                    <div className="producto-form-fila">
+                                        <label>Nombre de la clienta
+                                            <input autoFocus required value={reservaManual.cliente_nombre}
+                                                onChange={(e) => setReservaManual({ ...reservaManual, cliente_nombre: e.target.value })} />
+                                        </label>
+                                        <label>Teléfono (opcional)
+                                            <input inputMode="tel" value={reservaManual.cliente_telefono}
+                                                onChange={(e) => setReservaManual({ ...reservaManual, cliente_telefono: e.target.value })} />
+                                        </label>
+                                    </div>
+                                    <div className="producto-form-fila">
+                                        <label>Desde
+                                            <input type="date" required value={reservaManual.fecha_inicio}
+                                                onChange={(e) => setReservaManual({ ...reservaManual, fecha_inicio: e.target.value, fecha_fin: reservaManual.fecha_fin && reservaManual.fecha_fin < e.target.value ? e.target.value : reservaManual.fecha_fin })} />
+                                        </label>
+                                        <label>Hasta
+                                            <input type="date" required min={reservaManual.fecha_inicio} value={reservaManual.fecha_fin}
+                                                onChange={(e) => setReservaManual({ ...reservaManual, fecha_fin: e.target.value })} />
+                                        </label>
+                                    </div>
+                                    <label className="wide">Artículos
+                                        <div className="reserva-manual-items">
+                                            {!productos.filter((p) => p.activo).length && (
+                                                <p className="producto-form-nota">No hay artículos activos en el catálogo.</p>
+                                            )}
+                                            {productos.filter((p) => p.activo).map((producto) => (
+                                                <div className="reserva-manual-item" key={producto.id}>
+                                                    <span>{producto.nombre}</span>
+                                                    <input type="number" min="0" inputMode="numeric"
+                                                        placeholder="0"
+                                                        value={reservaManual.items[producto.id] || ''}
+                                                        onChange={(e) => cambiarCantidadReserva(producto.id, Math.max(0, Math.floor(Number(e.target.value) || 0)))} />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </label>
+                                    <label className="wide">Nota (opcional)
+                                        <textarea value={reservaManual.notas}
+                                            onChange={(e) => setReservaManual({ ...reservaManual, notas: e.target.value })} />
+                                    </label>
+                                    <div className="producto-form-acciones">
+                                        <button type="submit" disabled={creandoReserva}>
+                                            {creandoReserva ? 'Creando…' : 'Crear reserva confirmada'}
+                                        </button>
+                                        <button type="button" className="apagar" onClick={cancelarReservaManual}>
+                                            Cancelar
+                                        </button>
+                                    </div>
+                                </form>
+                            )}
 
                             <TarjetaAvisos negocioId={negocio.id} />
 
@@ -750,8 +914,13 @@ function Panel({ negocioInicial, email }) {
                                         onChange={(e) => setNegocio({ ...negocio, plantilla_confirmacion: e.target.value })} />
                                     <small>Variables disponibles: {'{nombre}'}, {'{pedido_id}'}, {'{fechas}'}, {'{total}'}. Se abre por WhatsApp al confirmar una reserva.</small>
                                 </label>
+                                <label className="wide">Mensaje para compartir tu tienda
+                                    <textarea value={negocio.plantilla_compartir || ''}
+                                        onChange={(e) => setNegocio({ ...negocio, plantilla_compartir: e.target.value })} />
+                                    <small>Variables disponibles: {'{nombre}'}, {'{enlace}'}. Se usa en el botón "Compartir tienda".</small>
+                                </label>
                                 <label className="wide">Enlace de tu tienda
-                                    <input readOnly value={`${window.location.origin}${window.location.pathname.replace(/admin\.html$/, '')}index.html?s=${negocio.slug}`}
+                                    <input readOnly value={enlaceTiendaCompleto}
                                         onFocus={(e) => e.target.select()} />
                                 </label>
                             </div>

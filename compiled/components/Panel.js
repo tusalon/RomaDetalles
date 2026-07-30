@@ -23,6 +23,19 @@ function armarMensajeConfirmacion(plantilla, pedido, moneda) {
   const total = `${dineroPanel(pedido.total)} ${moneda}`;
   return (plantilla || "").replaceAll("{nombre}", pedido.cliente_nombre || "").replaceAll("{pedido_id}", pedido.id || "").replaceAll("{fechas}", fechas).replaceAll("{total}", total);
 }
+function mensajeDeErrorReserva(error) {
+  const texto = String(error?.message || error || "");
+  if (texto.includes("SIN_STOCK")) {
+    const nombre = texto.split("SIN_STOCK:")[1]?.split("\n")[0]?.trim();
+    return nombre ? `${nombre} no tiene stock suficiente en esas fechas.` : "No hay stock suficiente en esas fechas.";
+  }
+  if (texto.includes("PERIODO_INVALIDO")) return "El período de fechas no es válido.";
+  if (texto.includes("PEDIDO_VACIO")) return "Elige al menos un artículo.";
+  if (texto.includes("PRODUCTO_NO_EXISTE")) return "Uno de los artículos ya no existe.";
+  if (texto.includes("NO_AUTORIZADO")) return "No tienes permiso para crear reservas en este negocio.";
+  console.error("[Panel] error de reserva no reconocido:", texto);
+  return "No se pudo crear la reserva. Inténtalo de nuevo.";
+}
 function TarjetaAvisos({ negocioId }) {
   const [activos, setActivos] = useState(false);
   const [estado, setEstado] = useState("");
@@ -73,6 +86,8 @@ function Panel({ negocioInicial, email }) {
   const [subiendoLogo, setSubiendoLogo] = useState(false);
   const [productoNuevo, setProductoNuevo] = useState(null);
   const [creandoProducto, setCreandoProducto] = useState(false);
+  const [reservaManual, setReservaManual] = useState(null);
+  const [creandoReserva, setCreandoReserva] = useState(false);
   const moneda = negocio.moneda || "CUP";
   function notificar(texto) {
     setAviso(texto);
@@ -140,6 +155,7 @@ function Panel({ negocioInicial, email }) {
             facebook_url: negocio.facebook_url,
             logo_url: negocio.logo_url || "",
             plantilla_confirmacion: negocio.plantilla_confirmacion || "",
+            plantilla_compartir: negocio.plantilla_compartir || "",
             dias_minimos: Math.max(1, Number(negocio.dias_minimos) || 1),
             actualizado_en: (/* @__PURE__ */ new Date()).toISOString()
           })
@@ -295,6 +311,69 @@ function Panel({ negocioInicial, email }) {
     window.location.replace("admin-login.html");
   }
   const enlaceTienda = `index.html?s=${encodeURIComponent(negocio.slug)}`;
+  const enlaceTiendaCompleto = `${window.location.origin}${window.location.pathname.replace(/admin\.html$/, "")}index.html?s=${negocio.slug}`;
+  async function compartirTienda() {
+    const mensaje = (negocio.plantilla_compartir || "¡Mira mi tienda! {enlace}").replaceAll("{nombre}", negocio.nombre || "").replaceAll("{enlace}", enlaceTiendaCompleto);
+    if (navigator.share) {
+      try {
+        await navigator.share({ text: mensaje });
+        return;
+      } catch (e) {
+        if (e?.name === "AbortError") return;
+        console.warn("[Panel] navigator.share falló, usando respaldo:", e);
+      }
+    }
+    window.open(`https://wa.me/?text=${encodeURIComponent(mensaje)}`, "_blank");
+  }
+  function abrirReservaManual() {
+    setReservaManual({ cliente_nombre: "", cliente_telefono: "", notas: "", fecha_inicio: "", fecha_fin: "", items: {} });
+  }
+  function cancelarReservaManual() {
+    setReservaManual(null);
+  }
+  function cambiarCantidadReserva(productoId, cantidad) {
+    setReservaManual((actual) => {
+      const items = { ...actual.items };
+      if (cantidad <= 0) delete items[productoId];
+      else items[productoId] = cantidad;
+      return { ...actual, items };
+    });
+  }
+  async function crearReservaManual(evento) {
+    evento.preventDefault();
+    if (!reservaManual.cliente_nombre.trim()) {
+      notificar("Ponle un nombre a la clienta.");
+      return;
+    }
+    if (!reservaManual.fecha_inicio || !reservaManual.fecha_fin) {
+      notificar("Elige las fechas del alquiler.");
+      return;
+    }
+    const items = Object.entries(reservaManual.items).map(([producto_id, cantidad]) => ({ producto_id, cantidad }));
+    if (!items.length) {
+      notificar("Elige al menos un artículo.");
+      return;
+    }
+    setCreandoReserva(true);
+    try {
+      const pedido = await window.supaRpc("alquiler_crear_pedido_manual", {
+        p_negocio: negocio.id,
+        p_nombre: reservaManual.cliente_nombre.trim(),
+        p_telefono: reservaManual.cliente_telefono.trim(),
+        p_notas: reservaManual.notas.trim(),
+        p_inicio: reservaManual.fecha_inicio,
+        p_fin: reservaManual.fecha_fin,
+        p_items: items
+      });
+      setReservaManual(null);
+      notificar(`Reserva ${pedido.id} creada y confirmada.`);
+      cargarPedidos();
+    } catch (e) {
+      notificar(mensajeDeErrorReserva(e));
+    } finally {
+      setCreandoReserva(false);
+    }
+  }
   return /* @__PURE__ */ React.createElement("main", { className: "admin" }, /* @__PURE__ */ React.createElement("header", { className: "admin-header" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("a", { className: "brand", href: enlaceTienda }, negocio.logo_url ? /* @__PURE__ */ React.createElement("img", { src: negocio.logo_url, alt: "", className: "brand-logo" }) : /* @__PURE__ */ React.createElement("span", null, "✦"), " ", negocio.nombre), /* @__PURE__ */ React.createElement("p", null, "Panel del negocio")), /* @__PURE__ */ React.createElement("div", { className: "admin-user" }, /* @__PURE__ */ React.createElement("span", null, email), /* @__PURE__ */ React.createElement("a", { href: "#", onClick: (e) => {
     e.preventDefault();
     salir();
@@ -326,7 +405,55 @@ function Panel({ negocioInicial, email }) {
       onClick: () => setPestana("config")
     },
     "Configuración"
-  ), /* @__PURE__ */ React.createElement("a", { href: enlaceTienda }, "Ver mi tienda ↗")), /* @__PURE__ */ React.createElement("section", { className: "admin-content" }, aviso && /* @__PURE__ */ React.createElement("p", { className: "admin-notice" }, aviso), pestana === "reservas" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "admin-title" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "Agenda y disponibilidad"), /* @__PURE__ */ React.createElement("h1", null, "Reservas")), /* @__PURE__ */ React.createElement("button", { onClick: cargarPedidos }, "Actualizar")), /* @__PURE__ */ React.createElement(TarjetaAvisos, { negocioId: negocio.id }), /* @__PURE__ */ React.createElement("div", { className: "admin-orders" }, !pedidos.length && /* @__PURE__ */ React.createElement("div", { className: "admin-card empty-orders" }, "Todavía no hay solicitudes."), pedidos.map((pedido) => /* @__PURE__ */ React.createElement("article", { className: "admin-order admin-card", key: pedido.id }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("span", { className: `order-chip ${pedido.estado}` }, ETIQUETA_ESTADO[pedido.estado] || pedido.estado), /* @__PURE__ */ React.createElement("h3", null, pedido.cliente_nombre), /* @__PURE__ */ React.createElement("p", null, pedido.id, " · ", pedido.fecha_inicio, " al ", pedido.fecha_fin, " · ", pedido.dias, " ", pedido.dias === 1 ? "día" : "días"), pedido.cliente_telefono && /* @__PURE__ */ React.createElement("p", null, "📞 ", /* @__PURE__ */ React.createElement("a", { href: `tel:${pedido.cliente_telefono}` }, pedido.cliente_telefono)), pedido.notas && /* @__PURE__ */ React.createElement("p", null, "📝 ", pedido.notas)), /* @__PURE__ */ React.createElement("ul", null, (pedido.alquiler_pedido_items || []).map((item) => /* @__PURE__ */ React.createElement("li", { key: item.id }, item.cantidad, " × ", item.producto_nombre))), /* @__PURE__ */ React.createElement("strong", null, dineroPanel(pedido.total), " ", moneda), /* @__PURE__ */ React.createElement("div", null, pedido.estado === "pendiente" && /* @__PURE__ */ React.createElement("button", { onClick: () => cambiarEstado(pedido, "confirmado") }, "Confirmar"), pedido.estado === "confirmado" && /* @__PURE__ */ React.createElement("button", { onClick: () => cambiarEstado(pedido, "entregado") }, "Entregada"), pedido.estado === "entregado" && /* @__PURE__ */ React.createElement("button", { onClick: () => cambiarEstado(pedido, "devuelto") }, "Devuelta"), pedido.estado !== "cancelado" && pedido.estado !== "devuelto" && /* @__PURE__ */ React.createElement("button", { className: "danger", onClick: () => cambiarEstado(pedido, "cancelado") }, "Cancelar")))))), pestana === "productos" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "admin-title" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "Tu inventario"), /* @__PURE__ */ React.createElement("h1", null, "Artículos")), !productoNuevo && /* @__PURE__ */ React.createElement("button", { onClick: abrirFormularioProducto }, "+ Nuevo artículo")), productoNuevo && /* @__PURE__ */ React.createElement("form", { className: "admin-card producto-form", onSubmit: crearProducto }, /* @__PURE__ */ React.createElement("h3", null, "Nuevo artículo"), /* @__PURE__ */ React.createElement("label", null, "Nombre", /* @__PURE__ */ React.createElement(
+  ), /* @__PURE__ */ React.createElement("a", { href: enlaceTienda }, "Ver mi tienda ↗"), /* @__PURE__ */ React.createElement("button", { onClick: compartirTienda }, "Compartir tienda")), /* @__PURE__ */ React.createElement("section", { className: "admin-content" }, aviso && /* @__PURE__ */ React.createElement("p", { className: "admin-notice" }, aviso), pestana === "reservas" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "admin-title" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "Agenda y disponibilidad"), /* @__PURE__ */ React.createElement("h1", null, "Reservas")), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "8px" } }, !reservaManual && /* @__PURE__ */ React.createElement("button", { onClick: abrirReservaManual }, "+ Reserva manual"), /* @__PURE__ */ React.createElement("button", { onClick: cargarPedidos }, "Actualizar"))), reservaManual && /* @__PURE__ */ React.createElement("form", { className: "admin-card producto-form", onSubmit: crearReservaManual }, /* @__PURE__ */ React.createElement("h3", null, "Reserva manual"), /* @__PURE__ */ React.createElement("p", { className: "producto-form-nota" }, "Para una clienta que acordó todo en persona o por teléfono, sin pasar por la tienda. Queda confirmada de una vez."), /* @__PURE__ */ React.createElement("div", { className: "producto-form-fila" }, /* @__PURE__ */ React.createElement("label", null, "Nombre de la clienta", /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      autoFocus: true,
+      required: true,
+      value: reservaManual.cliente_nombre,
+      onChange: (e) => setReservaManual({ ...reservaManual, cliente_nombre: e.target.value })
+    }
+  )), /* @__PURE__ */ React.createElement("label", null, "Teléfono (opcional)", /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      inputMode: "tel",
+      value: reservaManual.cliente_telefono,
+      onChange: (e) => setReservaManual({ ...reservaManual, cliente_telefono: e.target.value })
+    }
+  ))), /* @__PURE__ */ React.createElement("div", { className: "producto-form-fila" }, /* @__PURE__ */ React.createElement("label", null, "Desde", /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      type: "date",
+      required: true,
+      value: reservaManual.fecha_inicio,
+      onChange: (e) => setReservaManual({ ...reservaManual, fecha_inicio: e.target.value, fecha_fin: reservaManual.fecha_fin && reservaManual.fecha_fin < e.target.value ? e.target.value : reservaManual.fecha_fin })
+    }
+  )), /* @__PURE__ */ React.createElement("label", null, "Hasta", /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      type: "date",
+      required: true,
+      min: reservaManual.fecha_inicio,
+      value: reservaManual.fecha_fin,
+      onChange: (e) => setReservaManual({ ...reservaManual, fecha_fin: e.target.value })
+    }
+  ))), /* @__PURE__ */ React.createElement("label", { className: "wide" }, "Artículos", /* @__PURE__ */ React.createElement("div", { className: "reserva-manual-items" }, !productos.filter((p) => p.activo).length && /* @__PURE__ */ React.createElement("p", { className: "producto-form-nota" }, "No hay artículos activos en el catálogo."), productos.filter((p) => p.activo).map((producto) => /* @__PURE__ */ React.createElement("div", { className: "reserva-manual-item", key: producto.id }, /* @__PURE__ */ React.createElement("span", null, producto.nombre), /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      type: "number",
+      min: "0",
+      inputMode: "numeric",
+      placeholder: "0",
+      value: reservaManual.items[producto.id] || "",
+      onChange: (e) => cambiarCantidadReserva(producto.id, Math.max(0, Math.floor(Number(e.target.value) || 0)))
+    }
+  ))))), /* @__PURE__ */ React.createElement("label", { className: "wide" }, "Nota (opcional)", /* @__PURE__ */ React.createElement(
+    "textarea",
+    {
+      value: reservaManual.notas,
+      onChange: (e) => setReservaManual({ ...reservaManual, notas: e.target.value })
+    }
+  )), /* @__PURE__ */ React.createElement("div", { className: "producto-form-acciones" }, /* @__PURE__ */ React.createElement("button", { type: "submit", disabled: creandoReserva }, creandoReserva ? "Creando…" : "Crear reserva confirmada"), /* @__PURE__ */ React.createElement("button", { type: "button", className: "apagar", onClick: cancelarReservaManual }, "Cancelar"))), /* @__PURE__ */ React.createElement(TarjetaAvisos, { negocioId: negocio.id }), /* @__PURE__ */ React.createElement("div", { className: "admin-orders" }, !pedidos.length && /* @__PURE__ */ React.createElement("div", { className: "admin-card empty-orders" }, "Todavía no hay solicitudes."), pedidos.map((pedido) => /* @__PURE__ */ React.createElement("article", { className: "admin-order admin-card", key: pedido.id }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("span", { className: `order-chip ${pedido.estado}` }, ETIQUETA_ESTADO[pedido.estado] || pedido.estado), /* @__PURE__ */ React.createElement("h3", null, pedido.cliente_nombre), /* @__PURE__ */ React.createElement("p", null, pedido.id, " · ", pedido.fecha_inicio, " al ", pedido.fecha_fin, " · ", pedido.dias, " ", pedido.dias === 1 ? "día" : "días"), pedido.cliente_telefono && /* @__PURE__ */ React.createElement("p", null, "📞 ", /* @__PURE__ */ React.createElement("a", { href: `tel:${pedido.cliente_telefono}` }, pedido.cliente_telefono)), pedido.notas && /* @__PURE__ */ React.createElement("p", null, "📝 ", pedido.notas)), /* @__PURE__ */ React.createElement("ul", null, (pedido.alquiler_pedido_items || []).map((item) => /* @__PURE__ */ React.createElement("li", { key: item.id }, item.cantidad, " × ", item.producto_nombre))), /* @__PURE__ */ React.createElement("strong", null, dineroPanel(pedido.total), " ", moneda), /* @__PURE__ */ React.createElement("div", null, pedido.estado === "pendiente" && /* @__PURE__ */ React.createElement("button", { onClick: () => cambiarEstado(pedido, "confirmado") }, "Confirmar"), pedido.estado === "confirmado" && /* @__PURE__ */ React.createElement("button", { onClick: () => cambiarEstado(pedido, "entregado") }, "Entregada"), pedido.estado === "entregado" && /* @__PURE__ */ React.createElement("button", { onClick: () => cambiarEstado(pedido, "devuelto") }, "Devuelta"), pedido.estado !== "cancelado" && pedido.estado !== "devuelto" && /* @__PURE__ */ React.createElement("button", { className: "danger", onClick: () => cambiarEstado(pedido, "cancelado") }, "Cancelar")))))), pestana === "productos" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "admin-title" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "Tu inventario"), /* @__PURE__ */ React.createElement("h1", null, "Artículos")), !productoNuevo && /* @__PURE__ */ React.createElement("button", { onClick: abrirFormularioProducto }, "+ Nuevo artículo")), productoNuevo && /* @__PURE__ */ React.createElement("form", { className: "admin-card producto-form", onSubmit: crearProducto }, /* @__PURE__ */ React.createElement("h3", null, "Nuevo artículo"), /* @__PURE__ */ React.createElement("label", null, "Nombre", /* @__PURE__ */ React.createElement(
     "input",
     {
       autoFocus: true,
@@ -514,11 +641,17 @@ function Panel({ negocioInicial, email }) {
       value: negocio.plantilla_confirmacion || "",
       onChange: (e) => setNegocio({ ...negocio, plantilla_confirmacion: e.target.value })
     }
-  ), /* @__PURE__ */ React.createElement("small", null, "Variables disponibles: ", "{nombre}", ", ", "{pedido_id}", ", ", "{fechas}", ", ", "{total}", ". Se abre por WhatsApp al confirmar una reserva.")), /* @__PURE__ */ React.createElement("label", { className: "wide" }, "Enlace de tu tienda", /* @__PURE__ */ React.createElement(
+  ), /* @__PURE__ */ React.createElement("small", null, "Variables disponibles: ", "{nombre}", ", ", "{pedido_id}", ", ", "{fechas}", ", ", "{total}", ". Se abre por WhatsApp al confirmar una reserva.")), /* @__PURE__ */ React.createElement("label", { className: "wide" }, "Mensaje para compartir tu tienda", /* @__PURE__ */ React.createElement(
+    "textarea",
+    {
+      value: negocio.plantilla_compartir || "",
+      onChange: (e) => setNegocio({ ...negocio, plantilla_compartir: e.target.value })
+    }
+  ), /* @__PURE__ */ React.createElement("small", null, "Variables disponibles: ", "{nombre}", ", ", "{enlace}", '. Se usa en el botón "Compartir tienda".')), /* @__PURE__ */ React.createElement("label", { className: "wide" }, "Enlace de tu tienda", /* @__PURE__ */ React.createElement(
     "input",
     {
       readOnly: true,
-      value: `${window.location.origin}${window.location.pathname.replace(/admin\.html$/, "")}index.html?s=${negocio.slug}`,
+      value: enlaceTiendaCompleto,
       onFocus: (e) => e.target.select()
     }
   )))))));
