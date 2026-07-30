@@ -1,14 +1,24 @@
 // components/Panel.js — Panel del negocio de alquiler.
 //
-// Portado de app/admin/admin-client.tsx con tres diferencias que importan:
+// Portado de app/admin/admin-client.tsx con diferencias que importan:
 //   · El acceso es Supabase Auth de verdad. En la versión anterior cualquier
 //     cuenta de ChatGPT que entrara a /admin podía cambiar precios y cancelar
 //     reservas: `requireAdminApi()` solo comprobaba que hubiera sesión, no de
 //     quién. Ahora las policies de RLS filtran por auth.uid().
-//   · Pestaña nueva de Ocupación: cuántos días estuvo alquilado cada artículo
-//     y cuánto ingresó. Es el número que le dice al dueño qué comprar más.
+//   · Pestaña de Ocupación: cuántos días estuvo alquilado cada artículo y
+//     cuánto ingresó. Es el número que le dice al dueño qué comprar más.
 //   · Tarjeta de avisos push, para enterarse de un pedido sin depender de que
 //     la clienta pulse enviar en WhatsApp.
+//   · Alta de artículo por formulario: "+ Nuevo artículo" abre una tarjeta
+//     vacía para llenar (sin foto, sin insertar nada) y solo al Guardar se
+//     crea la fila real. La foto se agrega después, igual que al editar.
+//   · Logo del negocio y plantilla de mensaje de confirmación editables.
+//   · Al confirmar una reserva, se abre un wa.me hacia la CLIENTA con el
+//     mensaje de confirmación ya armado (la clienta, no el negocio: por
+//     eso usa pedido.cliente_telefono, no negocio.whatsapp).
+//   · "Fuera de servicio": unidades de un artículo que el dueño bloquea a
+//     mano (reparación, prestado fuera del sistema) sin pasar por un
+//     pedido con fechas; restan de lo disponible igual que una reserva.
 //
 // Editar este archivo y luego correr `bash scripts/build-jsx.sh`.
 
@@ -34,6 +44,20 @@ function primerDiaDelMes() {
 function hoyPanel() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+const PRODUCTO_VACIO = { nombre: '', descripcion: '', categoria: 'Decoración', precio_dia: '', cantidad: 1 };
+
+// Rellena la plantilla de confirmación con los datos reales del pedido.
+// Variables soportadas: {nombre} {pedido_id} {fechas} {total}
+function armarMensajeConfirmacion(plantilla, pedido, moneda) {
+    const fechas = `${pedido.fecha_inicio} al ${pedido.fecha_fin} (${pedido.dias} ${pedido.dias === 1 ? 'día' : 'días'})`;
+    const total = `${dineroPanel(pedido.total)} ${moneda}`;
+    return (plantilla || '')
+        .replaceAll('{nombre}', pedido.cliente_nombre || '')
+        .replaceAll('{pedido_id}', pedido.id || '')
+        .replaceAll('{fechas}', fechas)
+        .replaceAll('{total}', total);
 }
 
 // ---------------------------------------------------------------------
@@ -135,6 +159,9 @@ function Panel({ negocioInicial, email }) {
     const [rango, setRango] = useState({ desde: primerDiaDelMes(), hasta: hoyPanel() });
     const [aviso, setAviso] = useState('');
     const [subiendo, setSubiendo] = useState(null);
+    const [subiendoLogo, setSubiendoLogo] = useState(false);
+    const [productoNuevo, setProductoNuevo] = useState(null);
+    const [creandoProducto, setCreandoProducto] = useState(false);
 
     const moneda = negocio.moneda || 'CUP';
 
@@ -148,7 +175,7 @@ function Panel({ negocioInicial, email }) {
         try {
             setProductos(await window.supaGet(
                 `alquiler_productos?negocio_id=eq.${negocio.id}` +
-                `&select=id,nombre,descripcion,categoria,precio_dia,cantidad,foto_url,activo,orden` +
+                `&select=id,nombre,descripcion,categoria,precio_dia,cantidad,fuera_de_servicio,foto_url,activo,orden` +
                 `&order=orden.asc,creado_en.asc`
             ));
         } catch (e) {
@@ -211,6 +238,8 @@ function Panel({ negocioInicial, email }) {
                         moneda: negocio.moneda,
                         instagram_url: negocio.instagram_url,
                         facebook_url: negocio.facebook_url,
+                        logo_url: negocio.logo_url || '',
+                        plantilla_confirmacion: negocio.plantilla_confirmacion || '',
                         dias_minimos: Math.max(1, Number(negocio.dias_minimos) || 1),
                         actualizado_en: new Date().toISOString()
                     })
@@ -223,19 +252,51 @@ function Panel({ negocioInicial, email }) {
         }
     }
 
+    async function subirLogo(evento) {
+        const archivo = evento.target.files?.[0];
+        if (!archivo) return;
+        setSubiendoLogo(true);
+        const subida = await window.subirLogoNegocio(archivo, negocio.id);
+        setSubiendoLogo(false);
+        if (!subida) return;
+        setNegocio((actual) => ({ ...actual, logo_url: subida.url }));
+        // Se guarda solo, sin esperar a "Guardar cambios": si cierra el panel
+        // justo después de subir el logo, no se pierde.
+        await fetch(`${window.SUPABASE_URL}/rest/v1/alquiler_negocios?id=eq.${negocio.id}`, {
+            method: 'PATCH',
+            headers: window.supaHeaders({ Prefer: 'return=minimal' }),
+            body: JSON.stringify({ logo_url: subida.url, actualizado_en: new Date().toISOString() })
+        });
+        notificar('Logo actualizado.');
+    }
+
     // ---- Productos ----------------------------------------------------
-    async function nuevoProducto() {
+    function abrirFormularioProducto() {
+        setProductoNuevo({ ...PRODUCTO_VACIO });
+    }
+
+    function cancelarFormularioProducto() {
+        setProductoNuevo(null);
+    }
+
+    async function crearProducto(evento) {
+        evento.preventDefault();
+        if (!productoNuevo.nombre.trim()) {
+            notificar('Ponle un nombre al artículo.');
+            return;
+        }
+        setCreandoProducto(true);
         try {
             const res = await fetch(`${window.SUPABASE_URL}/rest/v1/alquiler_productos`, {
                 method: 'POST',
                 headers: window.supaHeaders({ Prefer: 'return=representation' }),
                 body: JSON.stringify({
                     negocio_id: negocio.id,
-                    nombre: 'Nuevo artículo',
-                    descripcion: '',
-                    categoria: 'Decoración',
-                    precio_dia: 0,
-                    cantidad: 1,
+                    nombre: productoNuevo.nombre.trim(),
+                    descripcion: productoNuevo.descripcion.trim(),
+                    categoria: productoNuevo.categoria.trim() || 'Decoración',
+                    precio_dia: Math.max(0, Number(productoNuevo.precio_dia) || 0),
+                    cantidad: Math.max(0, Math.floor(Number(productoNuevo.cantidad) || 0)),
                     foto_url: '',
                     activo: true,
                     orden: productos.length
@@ -244,10 +305,13 @@ function Panel({ negocioInicial, email }) {
             if (!res.ok) throw new Error(await res.text());
             const [creado] = await res.json();
             setProductos((actual) => [...actual, creado]);
-            notificar('Artículo creado. Ponle nombre, precio y foto.');
+            setProductoNuevo(null);
+            notificar(`${creado.nombre} creado. Ya puedes agregarle una foto.`);
         } catch (e) {
             console.error('[Panel] error creando artículo:', e);
             notificar('No se pudo crear el artículo.');
+        } finally {
+            setCreandoProducto(false);
         }
     }
 
@@ -264,6 +328,7 @@ function Panel({ negocioInicial, email }) {
                         categoria: producto.categoria,
                         precio_dia: Math.max(0, Number(producto.precio_dia) || 0),
                         cantidad: Math.max(0, Math.floor(Number(producto.cantidad) || 0)),
+                        fuera_de_servicio: Math.max(0, Math.floor(Number(producto.fuera_de_servicio) || 0)),
                         foto_url: producto.foto_url,
                         activo: producto.activo,
                         actualizado_en: new Date().toISOString()
@@ -326,12 +391,24 @@ function Panel({ negocioInicial, email }) {
                     body: JSON.stringify({ estado, actualizado_en: new Date().toISOString() })
                 }
             );
-            if (res.ok) {
-                setPedidos((actual) => actual.map((p) =>
-                    p.id === pedido.id ? { ...p, estado } : p));
-                notificar(`Reserva ${ETIQUETA_ESTADO[estado].toLowerCase()}.`);
-            } else {
+            if (!res.ok) {
                 notificar('No se pudo actualizar la reserva.');
+                return;
+            }
+            setPedidos((actual) => actual.map((p) =>
+                p.id === pedido.id ? { ...p, estado } : p));
+            notificar(`Reserva ${ETIQUETA_ESTADO[estado].toLowerCase()}.`);
+
+            // Al confirmar, abrir un WhatsApp hacia LA CLIENTA (no el negocio)
+            // con el mensaje de confirmación ya armado. El admin lo revisa y
+            // lo envía con un clic — igual que el resto de la app, no hay
+            // envío automático de mensajes desde el servidor.
+            if (estado === 'confirmado' && pedido.cliente_telefono) {
+                const numero = pedido.cliente_telefono.replace(/\D/g, '');
+                if (numero) {
+                    const mensaje = armarMensajeConfirmacion(negocio.plantilla_confirmacion, pedido, moneda);
+                    window.open(`https://wa.me/${numero}?text=${encodeURIComponent(mensaje)}`, '_blank');
+                }
             }
         } catch (e) {
             console.error('[Panel] error cambiando estado:', e);
@@ -350,7 +427,12 @@ function Panel({ negocioInicial, email }) {
         <main className="admin">
             <header className="admin-header">
                 <div>
-                    <a className="brand" href={enlaceTienda}><span>✦</span> {negocio.nombre}</a>
+                    <a className="brand" href={enlaceTienda}>
+                        {negocio.logo_url
+                            ? <img src={negocio.logo_url} alt="" className="brand-logo" />
+                            : <span>✦</span>}
+                        {' '}{negocio.nombre}
+                    </a>
                     <p>Panel del negocio</p>
                 </div>
                 <div className="admin-user">
@@ -441,15 +523,57 @@ function Panel({ negocioInicial, email }) {
                                     <p className="eyebrow">Tu inventario</p>
                                     <h1>Artículos</h1>
                                 </div>
-                                <button onClick={nuevoProducto}>+ Nuevo artículo</button>
+                                {!productoNuevo && (
+                                    <button onClick={abrirFormularioProducto}>+ Nuevo artículo</button>
+                                )}
                             </div>
+
+                            {productoNuevo && (
+                                <form className="admin-card producto-form" onSubmit={crearProducto}>
+                                    <h3>Nuevo artículo</h3>
+                                    <label>Nombre
+                                        <input autoFocus required value={productoNuevo.nombre}
+                                            onChange={(e) => setProductoNuevo({ ...productoNuevo, nombre: e.target.value })} />
+                                    </label>
+                                    <label className="wide">Descripción
+                                        <textarea value={productoNuevo.descripcion}
+                                            onChange={(e) => setProductoNuevo({ ...productoNuevo, descripcion: e.target.value })} />
+                                    </label>
+                                    <div className="producto-form-fila">
+                                        <label>Categoría
+                                            <input value={productoNuevo.categoria}
+                                                onChange={(e) => setProductoNuevo({ ...productoNuevo, categoria: e.target.value })} />
+                                        </label>
+                                        <label>Precio por día
+                                            <input type="number" min="0" inputMode="numeric" value={productoNuevo.precio_dia}
+                                                onChange={(e) => setProductoNuevo({ ...productoNuevo, precio_dia: e.target.value })} />
+                                        </label>
+                                        <label>Cantidad
+                                            <input type="number" min="0" inputMode="numeric" value={productoNuevo.cantidad}
+                                                onChange={(e) => setProductoNuevo({ ...productoNuevo, cantidad: e.target.value })} />
+                                        </label>
+                                    </div>
+                                    <p className="producto-form-nota">La foto se agrega después de crear el artículo.</p>
+                                    <div className="producto-form-acciones">
+                                        <button type="submit" disabled={creandoProducto}>
+                                            {creandoProducto ? 'Creando…' : 'Crear artículo'}
+                                        </button>
+                                        <button type="button" className="apagar" onClick={cancelarFormularioProducto}>
+                                            Cancelar
+                                        </button>
+                                    </div>
+                                </form>
+                            )}
+
                             <div className="admin-products">
-                                {!productos.length && (
+                                {!productos.length && !productoNuevo && (
                                     <div className="admin-card empty-orders">
                                         Todavía no tienes artículos. Pulsa «Nuevo artículo» para empezar.
                                     </div>
                                 )}
-                                {productos.map((producto) => (
+                                {productos.map((producto) => {
+                                    const disponibleAhora = Math.max(0, (producto.cantidad || 0) - (producto.fuera_de_servicio || 0));
+                                    return (
                                     <article className="admin-product admin-card" key={producto.id}
                                         style={producto.activo ? undefined : { opacity: .6 }}>
                                         <img src={producto.foto_url || 'images/producto-arco.png'} alt="" />
@@ -471,12 +595,21 @@ function Panel({ negocioInicial, email }) {
                                                         onChange={(e) => setProductos((p) => p.map((x) =>
                                                             x.id === producto.id ? { ...x, precio_dia: e.target.value } : x))} />
                                                 </label>
-                                                <label>Cantidad
+                                                <label>Cantidad total
                                                     <input type="number" min="0" inputMode="numeric" value={producto.cantidad}
                                                         onChange={(e) => setProductos((p) => p.map((x) =>
                                                             x.id === producto.id ? { ...x, cantidad: e.target.value } : x))} />
                                                 </label>
+                                                <label>Fuera de servicio
+                                                    <input type="number" min="0" inputMode="numeric" value={producto.fuera_de_servicio || 0}
+                                                        onChange={(e) => setProductos((p) => p.map((x) =>
+                                                            x.id === producto.id ? { ...x, fuera_de_servicio: e.target.value } : x))} />
+                                                </label>
                                             </div>
+                                            <p className="producto-disponible-ahora">
+                                                ● {disponibleAhora} de {producto.cantidad || 0} disponibles ahora
+                                                {producto.fuera_de_servicio > 0 && ` (${producto.fuera_de_servicio} fuera de servicio)`}
+                                            </p>
                                             <label className="upload">
                                                 {subiendo === producto.id ? 'Subiendo foto…' : 'Cambiar foto'}
                                                 <input type="file" accept="image/*"
@@ -495,7 +628,8 @@ function Panel({ negocioInicial, email }) {
                                             <button className="danger" onClick={() => ocultarProducto(producto)}>Quitar</button>
                                         </div>
                                     </article>
-                                ))}
+                                    );
+                                })}
                             </div>
                         </>
                     )}
@@ -532,26 +666,28 @@ function Panel({ negocioInicial, email }) {
                                         Todavía no hay reservas confirmadas en este período.
                                     </p>
                                 ) : (
-                                    <table>
-                                        <thead>
-                                            <tr>
-                                                <th>Artículo</th>
-                                                <th className="num">Veces</th>
-                                                <th className="num">Días</th>
-                                                <th className="num">Ingreso</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {ocupacion.map((fila) => (
-                                                <tr key={fila.producto_id}>
-                                                    <td>{fila.producto_nombre}</td>
-                                                    <td className="num">{fila.veces_alquilado}</td>
-                                                    <td className="num">{fila.dias_alquilado}</td>
-                                                    <td className="num">{dineroPanel(fila.ingreso)} {moneda}</td>
+                                    <div className="ocupacion-scroll">
+                                        <table>
+                                            <thead>
+                                                <tr>
+                                                    <th>Artículo</th>
+                                                    <th className="num">Veces</th>
+                                                    <th className="num">Días</th>
+                                                    <th className="num">Ingreso</th>
                                                 </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
+                                            </thead>
+                                            <tbody>
+                                                {ocupacion.map((fila) => (
+                                                    <tr key={fila.producto_id}>
+                                                        <td>{fila.producto_nombre}</td>
+                                                        <td className="num">{fila.veces_alquilado}</td>
+                                                        <td className="num">{fila.dias_alquilado}</td>
+                                                        <td className="num">{dineroPanel(fila.ingreso)} {moneda}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 )}
                             </div>
                         </>
@@ -568,6 +704,15 @@ function Panel({ negocioInicial, email }) {
                                 <button onClick={guardarConfiguracion}>Guardar cambios</button>
                             </div>
                             <div className="admin-card settings-form">
+                                <label className="wide">Logo de tu negocio
+                                    <div className="logo-picker">
+                                        {negocio.logo_url && <img src={negocio.logo_url} alt="" className="logo-preview" />}
+                                        <label className="upload">
+                                            {subiendoLogo ? 'Subiendo…' : (negocio.logo_url ? 'Cambiar logo' : 'Subir logo')}
+                                            <input type="file" accept="image/*" disabled={subiendoLogo} onChange={subirLogo} />
+                                        </label>
+                                    </div>
+                                </label>
                                 <label>Nombre del negocio
                                     <input value={negocio.nombre}
                                         onChange={(e) => setNegocio({ ...negocio, nombre: e.target.value })} />
@@ -599,6 +744,11 @@ function Panel({ negocioInicial, email }) {
                                 <label>Facebook
                                     <input placeholder="https://facebook.com/..." value={negocio.facebook_url}
                                         onChange={(e) => setNegocio({ ...negocio, facebook_url: e.target.value })} />
+                                </label>
+                                <label className="wide">Mensaje de confirmación (a la clienta)
+                                    <textarea value={negocio.plantilla_confirmacion || ''}
+                                        onChange={(e) => setNegocio({ ...negocio, plantilla_confirmacion: e.target.value })} />
+                                    <small>Variables disponibles: {'{nombre}'}, {'{pedido_id}'}, {'{fechas}'}, {'{total}'}. Se abre por WhatsApp al confirmar una reserva.</small>
                                 </label>
                                 <label className="wide">Enlace de tu tienda
                                     <input readOnly value={`${window.location.origin}${window.location.pathname.replace(/admin\.html$/, '')}index.html?s=${negocio.slug}`}

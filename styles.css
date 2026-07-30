@@ -146,7 +146,11 @@ h1,h2,h3,p { text-wrap: pretty; }
 .admin-nav button,.admin-nav a { background:transparent; border:0; border-radius:10px; cursor:pointer; font-size:13px; font-weight:700; padding:13px 15px; text-align:left; }
 .admin-nav button.active { background:var(--burgundy); color:white; }
 .admin-nav a { color:var(--purple); margin-top:18px; }
-.admin-content { padding:42px clamp(20px,4vw,60px) 80px; }
+/* min-width:0 es lo que de verdad arregla el desborde en móvil: un hijo de
+   grid con ancho "1fr" por defecto no se encoge más allá del contenido más
+   ancho que tenga adentro (aquí, la tabla de Ocupación). Sin esto, aunque
+   la tabla tenga su propio overflow-x:auto, toda la página se ensancha. */
+.admin-content { min-width:0; padding:42px clamp(20px,4vw,60px) 80px; }
 .admin-title { align-items:end; display:flex; justify-content:space-between; margin-bottom:26px; }
 .admin-title .eyebrow { margin-bottom:8px; }
 .admin-title h1 { color:var(--burgundy); font-family:var(--serif); font-size:52px; font-weight:500; margin:0; }
@@ -164,7 +168,7 @@ h1,h2,h3,p { text-wrap: pretty; }
 .product-fields { display:grid; gap:10px; }
 .product-fields > input { color:var(--burgundy); font-family:var(--serif); font-size:22px; font-weight:600; }
 .product-fields > textarea { min-height:62px; resize:vertical; }
-.product-fields > div { display:grid; gap:10px; grid-template-columns:1.4fr 1fr .7fr; }
+.product-fields > div { display:grid; gap:10px; grid-template-columns:1.2fr 1fr .8fr .9fr; }
 .product-fields .upload { background:var(--lilac); border-radius:8px; color:var(--purple); cursor:pointer; padding:9px 12px; width:fit-content; }
 .product-fields .upload input { display:none; }
 .product-admin-actions { align-items:stretch; display:flex; flex-direction:column; gap:8px; min-width:92px; }
@@ -207,7 +211,8 @@ h1,h2,h3,p { text-wrap: pretty; }
 .push-estado.off { color:var(--muted); }
 
 /* --- Ocupación ------------------------------------------------------ */
-.ocupacion-tabla { overflow-x:auto; padding:6px; }
+.ocupacion-tabla { padding:6px; }
+.ocupacion-scroll { -webkit-overflow-scrolling:touch; overflow-x:auto; }
 .ocupacion-tabla table { border-collapse:collapse; min-width:520px; width:100%; }
 .ocupacion-tabla th { color:var(--muted); font-size:10px; font-weight:800; letter-spacing:.1em; padding:12px 14px; text-align:left; text-transform:uppercase; }
 .ocupacion-tabla td { border-top:1px solid var(--border); font-size:13px; padding:14px; }
@@ -215,9 +220,28 @@ h1,h2,h3,p { text-wrap: pretty; }
 .ocupacion-tabla td.num { text-align:right; white-space:nowrap; }
 .ocupacion-vacia { color:var(--muted); font-size:13px; padding:36px; text-align:center; }
 
+/* --- Alta de producto por formulario --------------------------------- */
+.producto-form { display:grid; gap:14px; margin-bottom:18px; padding:24px; }
+.producto-form h3 { color:var(--burgundy); font-family:var(--serif); font-size:24px; margin:0; }
+.producto-form label { color:var(--muted); font-size:11px; font-weight:700; }
+.producto-form label.wide { grid-column:1/-1; }
+.producto-form input,.producto-form textarea { background:white; border:1px solid var(--border); border-radius:8px; display:block; margin-top:6px; min-height:43px; padding:9px 11px; width:100%; }
+.producto-form textarea { min-height:70px; resize:vertical; }
+.producto-form-fila { display:grid; gap:10px; grid-template-columns:1.4fr 1fr .8fr; }
+.producto-form-nota { color:var(--muted); font-size:11px; margin:0; }
+.producto-form-acciones { display:flex; gap:10px; }
+.producto-form-acciones button { background:var(--burgundy); border:0; border-radius:9px; color:white; cursor:pointer; font-size:12px; font-weight:800; min-height:44px; padding:0 18px; }
+.producto-form-acciones button.apagar { background:transparent; border:1px solid var(--border); color:var(--muted); }
+.producto-disponible-ahora { color:#258358; font-size:11px; font-weight:700; margin:0; }
+
+/* --- Logo del negocio ------------------------------------------------ */
+.logo-picker { align-items:center; display:flex; gap:14px; margin-top:6px; }
+.logo-preview { background:#f8f5f2; border:1px solid var(--border); border-radius:10px; height:56px; object-fit:contain; padding:4px; width:56px; }
+.brand-logo { border-radius:8px; height:38px; object-fit:contain; width:38px; }
+
 @media(max-width:1100px){.header{grid-template-columns:1fr auto}.header nav{display:none}.hero{grid-template-columns:1fr 1fr}.date-card{left:-35px}.product-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:800px){.hero{grid-template-columns:1fr}.hero-visual,.hero-visual>img{min-height:580px;height:580px}.date-card{bottom:-50px;left:20px}.catalog{padding-top:130px}.section-head{align-items:start;flex-direction:column}.steps{grid-template-columns:1fr}.footer{grid-template-columns:1fr}.footer p{text-align:left}}
 @media(max-width:900px){.admin-shell{grid-template-columns:1fr}.admin-nav{border-bottom:1px solid var(--border);border-right:0;flex-direction:row;overflow-x:auto;padding:15px 20px}.admin-nav button,.admin-nav a{flex:0 0 auto}.admin-nav a{margin-top:0}.admin-product{grid-template-columns:100px 1fr}.admin-product>img{height:100px;width:100px}.product-admin-actions{flex-direction:row;grid-column:1/-1}.admin-order{grid-template-columns:1fr 1fr}.settings-form{grid-template-columns:1fr}.settings-form label.wide{grid-column:auto}}
 @media(max-width:560px){.header{height:72px;padding-inline:16px}.brand{font-size:24px}.brand>span{height:33px;width:33px}.cart-trigger{font-size:0;padding-left:10px}.cart-trigger b{font-size:12px}.shell{padding-inline:17px}.hero{padding-top:42px}.hero h1{font-size:52px}.hero-buttons{align-items:stretch;flex-direction:column}.hero-visual,.hero-visual>img{min-height:440px;height:440px}.hero-visual>img{border-radius:21px}.date-card{bottom:-105px;left:8px;width:calc(100% - 16px)}.dates{grid-template-columns:1fr}.catalog{padding-top:170px}.section-head h2,.center-head h2{font-size:44px}.filters{flex-wrap:nowrap;margin-inline:-17px;overflow-x:auto;padding-inline:17px}.filters button{flex:0 0 auto}.product-grid{grid-template-columns:1fr}.drawer{width:100%}}
-@media(max-width:560px){.admin-header{align-items:flex-start;gap:15px}.admin-header .brand{font-size:22px}.admin-user{font-size:10px}.admin-content{padding-inline:15px}.admin-title{align-items:flex-start;flex-direction:column;gap:15px}.admin-title h1{font-size:44px}.admin-product{grid-template-columns:1fr}.admin-product>img{height:200px;width:100%}.product-fields>div{grid-template-columns:1fr}.admin-order{grid-template-columns:1fr}.product-admin-actions{flex-wrap:wrap}}
+@media(max-width:560px){.admin-header{align-items:flex-start;gap:15px}.admin-header .brand{font-size:22px}.admin-user{font-size:10px}.admin-content{padding-inline:15px}.admin-title{align-items:flex-start;flex-direction:column;gap:15px}.admin-title h1{font-size:44px}.admin-product{grid-template-columns:1fr}.admin-product>img{height:200px;width:100%}.product-fields>div{grid-template-columns:1fr}.admin-order{grid-template-columns:1fr}.product-admin-actions{flex-wrap:wrap}.producto-form{padding:16px}.producto-form-fila{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}

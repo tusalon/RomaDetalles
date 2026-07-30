@@ -195,6 +195,18 @@ window.subirFotoProducto = function(file, productoId) {
     });
 };
 
+// Logo del negocio de alquiler (aparece en el header del panel y, si se
+// quiere más adelante, en la tienda). 400px basta: se muestra pequeño, como
+// ícono junto al nombre, nunca a pantalla completa.
+window.subirLogoNegocio = function(file, negocioId) {
+    return subirImagenACloudinary(file, {
+        folder: CLOUDINARY_FOLDER_PRODUCTOS.replace('/productos', '/logos'),
+        etiqueta: negocioId || 'logo',
+        tags: 'romadetalles,logo',
+        maxDimension: 400
+    });
+};
+
 window.eliminarImagenServicio = async function() {
     console.warn('Para borrar imagenes de Cloudinary hace falta una firma segura desde backend.');
     return true;

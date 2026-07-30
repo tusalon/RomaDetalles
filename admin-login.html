@@ -7,8 +7,23 @@
     <meta name="theme-color" content="#681831">
     <meta name="robots" content="noindex">
 
+    <!-- Esta es la página que ve cualquiera que abra el panel SIN sesión
+         iniciada — el caso normal, la primera vez. Si el manifiesto y el
+         service worker solo estuvieran en admin.html, el navegador nunca
+         vería una PWA instalable: entrar sin sesión redirige aquí antes de
+         que Chrome llegue a evaluar admin.html. Por eso el mismo bloque se
+         repite en ambas páginas (ver admin.html). -->
+    <script>
+        const enlaceManifiesto = document.createElement('link');
+        enlaceManifiesto.rel = 'manifest';
+        enlaceManifiesto.href = 'manifest.json';
+        document.head.appendChild(enlaceManifiesto);
+    </script>
+
     <link rel="icon" href="icons/icon-192x192.png">
     <link rel="apple-touch-icon" href="icons/icon-192x192.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="stylesheet" href="styles.css?v=20260730-1">
 
     <script src="utils/supabase-config.js?v=20260730-1"></script>
@@ -66,6 +81,11 @@
             boton.textContent = 'Entrar';
         });
     })();
+
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js').catch((e) =>
+            console.warn('No se pudo registrar el service worker:', e));
+    }
     </script>
 </body>
 </html>
