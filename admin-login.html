@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Entrar — Panel de RomaDetalles</title>
+    <meta name="theme-color" content="#681831">
+    <meta name="robots" content="noindex">
+
+    <link rel="icon" href="icons/icon-192x192.png">
+    <link rel="apple-touch-icon" href="icons/icon-192x192.png">
+    <link rel="stylesheet" href="styles.css?v=20260730-1">
+
+    <script src="utils/supabase-config.js?v=20260730-1"></script>
+    <script src="utils/auth-alquiler.js?v=20260730-1"></script>
+</head>
+<body>
+    <div class="login-wrap">
+        <div class="login-card admin-card">
+            <span class="brand"><span>✦</span> RomaDetalles</span>
+            <h1>Panel del negocio</h1>
+            <p>Entra con el correo y la contraseña de tu negocio para administrar tu catálogo y tus reservas.</p>
+
+            <form id="form-login">
+                <input type="email" id="email" placeholder="Tu correo"
+                       autocomplete="username" required>
+                <input type="password" id="password" placeholder="Tu contraseña"
+                       autocomplete="current-password" required>
+                <button type="submit" id="boton">Entrar</button>
+                <p class="login-error" id="error" hidden></p>
+            </form>
+        </div>
+    </div>
+
+    <script>
+    (async function () {
+        // Si ya hay sesión válida, no tiene sentido mostrar el formulario.
+        if (await window.AlquilerAuth.asegurarSesion()) {
+            window.location.replace('admin.html');
+            return;
+        }
+
+        const form = document.getElementById('form-login');
+        const boton = document.getElementById('boton');
+        const error = document.getElementById('error');
+
+        form.addEventListener('submit', async function (evento) {
+            evento.preventDefault();
+            error.hidden = true;
+            boton.disabled = true;
+            boton.textContent = 'Entrando…';
+
+            const resultado = await window.AlquilerAuth.entrar(
+                document.getElementById('email').value,
+                document.getElementById('password').value
+            );
+
+            if (resultado.ok) {
+                window.location.replace('admin.html');
+                return;
+            }
+
+            error.textContent = resultado.mensaje;
+            error.hidden = false;
+            boton.disabled = false;
+            boton.textContent = 'Entrar';
+        });
+    })();
+    </script>
+</body>
+</html>

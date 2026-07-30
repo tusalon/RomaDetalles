@@ -1,0 +1,25 @@
+{
+  "name": "RomaDetalles — Alquiler para eventos",
+  "short_name": "RomaDetalles",
+  "description": "Alquila decoración para tu evento: elige fechas, arma tu combo y confirma por WhatsApp.",
+  "start_url": "/RomaDetalles/admin.html",
+  "scope": "/RomaDetalles/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#111827",
+  "theme_color": "#B8860B",
+  "icons": [
+    {
+      "src": "/RomaDetalles/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/RomaDetalles/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
