@@ -88,6 +88,8 @@ function Panel({ negocioInicial, email }) {
   const [creandoProducto, setCreandoProducto] = useState(false);
   const [reservaManual, setReservaManual] = useState(null);
   const [creandoReserva, setCreandoReserva] = useState(false);
+  const [galeria, setGaleria] = useState([]);
+  const [subiendoFotoGaleria, setSubiendoFotoGaleria] = useState(false);
   const moneda = negocio.moneda || "CUP";
   function notificar(texto) {
     setAviso(texto);
@@ -126,6 +128,16 @@ function Panel({ negocioInicial, email }) {
       notificar("No se pudo calcular la ocupación.");
     }
   }, [negocio.id, rango.desde, rango.hasta]);
+  const cargarGaleria = useCallback(async () => {
+    try {
+      setGaleria(await window.supaGet(
+        `alquiler_galeria?negocio_id=eq.${negocio.id}&select=id,imagen_url,descripcion,creado_en&order=creado_en.desc`
+      ));
+    } catch (e) {
+      console.error("[Panel] error cargando galería:", e);
+      notificar("No se pudo cargar la galería.");
+    }
+  }, [negocio.id]);
   useEffect(() => {
     cargarProductos();
     cargarPedidos();
@@ -133,6 +145,9 @@ function Panel({ negocioInicial, email }) {
   useEffect(() => {
     if (pestana === "ocupacion") cargarOcupacion();
   }, [pestana, cargarOcupacion]);
+  useEffect(() => {
+    if (pestana === "galeria") cargarGaleria();
+  }, [pestana, cargarGaleria]);
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("pedido")) {
       setPestana("reservas");
@@ -279,6 +294,59 @@ function Panel({ negocioInicial, email }) {
     setProductos((actual) => actual.map((p) => p.id === producto.id ? { ...p, foto_url: subida.url } : p));
     await guardarProducto({ ...producto, foto_url: subida.url });
   }
+  async function agregarFotoGaleria(evento) {
+    const archivo = evento.target.files?.[0];
+    if (!archivo) return;
+    setSubiendoFotoGaleria(true);
+    const subida = await window.subirFotoGaleria(archivo, negocio.id);
+    setSubiendoFotoGaleria(false);
+    if (!subida) return;
+    try {
+      const res = await fetch(`${window.SUPABASE_URL}/rest/v1/alquiler_galeria`, {
+        method: "POST",
+        headers: window.supaHeaders({ Prefer: "return=representation" }),
+        body: JSON.stringify({ negocio_id: negocio.id, imagen_url: subida.url, descripcion: "" })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const [creada] = await res.json();
+      setGaleria((actual) => [creada, ...actual]);
+      notificar("Foto agregada a la galería.");
+    } catch (e) {
+      console.error("[Panel] error guardando foto de galería:", e);
+      notificar("La foto se subió pero no se pudo guardar. Inténtalo de nuevo.");
+    }
+  }
+  async function guardarDescripcionGaleria(foto) {
+    try {
+      const res = await fetch(
+        `${window.SUPABASE_URL}/rest/v1/alquiler_galeria?id=eq.${foto.id}`,
+        {
+          method: "PATCH",
+          headers: window.supaHeaders({ Prefer: "return=minimal" }),
+          body: JSON.stringify({ descripcion: foto.descripcion })
+        }
+      );
+      notificar(res.ok ? "Descripción guardada." : "No se pudo guardar.");
+    } catch (e) {
+      console.error("[Panel] error guardando descripción:", e);
+      notificar("No se pudo guardar.");
+    }
+  }
+  async function eliminarFotoGaleria(foto) {
+    if (!window.confirm("¿Quitar esta foto de la galería?")) return;
+    try {
+      const res = await fetch(
+        `${window.SUPABASE_URL}/rest/v1/alquiler_galeria?id=eq.${foto.id}`,
+        { method: "DELETE", headers: window.supaHeaders({ Prefer: "return=minimal" }) }
+      );
+      if (res.ok) {
+        setGaleria((actual) => actual.filter((f) => f.id !== foto.id));
+        notificar("Foto eliminada.");
+      }
+    } catch (e) {
+      console.error("[Panel] error eliminando foto de galería:", e);
+    }
+  }
   async function cambiarEstado(pedido, estado) {
     try {
       const res = await fetch(
@@ -399,6 +467,13 @@ function Panel({ negocioInicial, email }) {
       onClick: () => setPestana("ocupacion")
     },
     "Ocupación"
+  ), /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      className: pestana === "galeria" ? "active" : "",
+      onClick: () => setPestana("galeria")
+    },
+    "Galería"
   ), /* @__PURE__ */ React.createElement(
     "button",
     {
@@ -581,7 +656,22 @@ function Panel({ negocioInicial, email }) {
       min: rango.desde,
       onChange: (e) => setRango({ ...rango, hasta: e.target.value })
     }
-  )))), /* @__PURE__ */ React.createElement("div", { className: "admin-card ocupacion-tabla" }, !ocupacion.length ? /* @__PURE__ */ React.createElement("p", { className: "ocupacion-vacia" }, "Todavía no hay reservas confirmadas en este período.") : /* @__PURE__ */ React.createElement("div", { className: "ocupacion-scroll" }, /* @__PURE__ */ React.createElement("table", null, /* @__PURE__ */ React.createElement("thead", null, /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("th", null, "Artículo"), /* @__PURE__ */ React.createElement("th", { className: "num" }, "Veces"), /* @__PURE__ */ React.createElement("th", { className: "num" }, "Días"), /* @__PURE__ */ React.createElement("th", { className: "num" }, "Ingreso"))), /* @__PURE__ */ React.createElement("tbody", null, ocupacion.map((fila) => /* @__PURE__ */ React.createElement("tr", { key: fila.producto_id }, /* @__PURE__ */ React.createElement("td", null, fila.producto_nombre), /* @__PURE__ */ React.createElement("td", { className: "num" }, fila.veces_alquilado), /* @__PURE__ */ React.createElement("td", { className: "num" }, fila.dias_alquilado), /* @__PURE__ */ React.createElement("td", { className: "num" }, dineroPanel(fila.ingreso), " ", moneda)))))))), pestana === "config" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "admin-title" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "Personaliza tu tienda"), /* @__PURE__ */ React.createElement("h1", null, "Configuración")), /* @__PURE__ */ React.createElement("button", { onClick: guardarConfiguracion }, "Guardar cambios")), /* @__PURE__ */ React.createElement("div", { className: "admin-card settings-form" }, /* @__PURE__ */ React.createElement("label", { className: "wide" }, "Logo de tu negocio", /* @__PURE__ */ React.createElement("div", { className: "logo-picker" }, negocio.logo_url && /* @__PURE__ */ React.createElement("img", { src: negocio.logo_url, alt: "", className: "logo-preview" }), /* @__PURE__ */ React.createElement("label", { className: "upload" }, subiendoLogo ? "Subiendo…" : negocio.logo_url ? "Cambiar logo" : "Subir logo", /* @__PURE__ */ React.createElement("input", { type: "file", accept: "image/*", disabled: subiendoLogo, onChange: subirLogo })))), /* @__PURE__ */ React.createElement("label", null, "Nombre del negocio", /* @__PURE__ */ React.createElement(
+  )))), /* @__PURE__ */ React.createElement("div", { className: "admin-card ocupacion-tabla" }, !ocupacion.length ? /* @__PURE__ */ React.createElement("p", { className: "ocupacion-vacia" }, "Todavía no hay reservas confirmadas en este período.") : /* @__PURE__ */ React.createElement("div", { className: "ocupacion-scroll" }, /* @__PURE__ */ React.createElement("table", null, /* @__PURE__ */ React.createElement("thead", null, /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("th", null, "Artículo"), /* @__PURE__ */ React.createElement("th", { className: "num" }, "Veces"), /* @__PURE__ */ React.createElement("th", { className: "num" }, "Días"), /* @__PURE__ */ React.createElement("th", { className: "num" }, "Ingreso"))), /* @__PURE__ */ React.createElement("tbody", null, ocupacion.map((fila) => /* @__PURE__ */ React.createElement("tr", { key: fila.producto_id }, /* @__PURE__ */ React.createElement("td", null, fila.producto_nombre), /* @__PURE__ */ React.createElement("td", { className: "num" }, fila.veces_alquilado), /* @__PURE__ */ React.createElement("td", { className: "num" }, fila.dias_alquilado), /* @__PURE__ */ React.createElement("td", { className: "num" }, dineroPanel(fila.ingreso), " ", moneda)))))))), pestana === "galeria" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "admin-title" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "Tu portafolio"), /* @__PURE__ */ React.createElement("h1", null, "Galería")), /* @__PURE__ */ React.createElement("label", { className: "upload galeria-add" }, subiendoFotoGaleria ? "Subiendo…" : "+ Agregar foto", /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      type: "file",
+      accept: "image/*",
+      disabled: subiendoFotoGaleria,
+      onChange: agregarFotoGaleria
+    }
+  ))), /* @__PURE__ */ React.createElement("p", { className: "producto-form-nota" }, 'Estas fotos se ven en tu tienda pública, en la sección "Nuestros trabajos" — son la prueba de lo que ya has hecho.'), /* @__PURE__ */ React.createElement("div", { className: "admin-galeria" }, !galeria.length && /* @__PURE__ */ React.createElement("div", { className: "admin-card empty-orders" }, "Todavía no tienes fotos. Pulsa «+ Agregar foto» para empezar."), galeria.map((foto) => /* @__PURE__ */ React.createElement("article", { className: "admin-galeria-item admin-card", key: foto.id }, /* @__PURE__ */ React.createElement("img", { src: foto.imagen_url, alt: "" }), /* @__PURE__ */ React.createElement(
+    "textarea",
+    {
+      placeholder: "Descripción corta (opcional)",
+      value: foto.descripcion,
+      onChange: (e) => setGaleria((actual) => actual.map((f) => f.id === foto.id ? { ...f, descripcion: e.target.value } : f))
+    }
+  ), /* @__PURE__ */ React.createElement("div", { className: "admin-galeria-item-acciones" }, /* @__PURE__ */ React.createElement("button", { onClick: () => guardarDescripcionGaleria(foto) }, "Guardar"), /* @__PURE__ */ React.createElement("button", { className: "danger", onClick: () => eliminarFotoGaleria(foto) }, "Eliminar")))))), pestana === "config" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "admin-title" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "Personaliza tu tienda"), /* @__PURE__ */ React.createElement("h1", null, "Configuración")), /* @__PURE__ */ React.createElement("button", { onClick: guardarConfiguracion }, "Guardar cambios")), /* @__PURE__ */ React.createElement("div", { className: "admin-card settings-form" }, /* @__PURE__ */ React.createElement("label", { className: "wide" }, "Logo de tu negocio", /* @__PURE__ */ React.createElement("div", { className: "logo-picker" }, negocio.logo_url && /* @__PURE__ */ React.createElement("img", { src: negocio.logo_url, alt: "", className: "logo-preview" }), /* @__PURE__ */ React.createElement("label", { className: "upload" }, subiendoLogo ? "Subiendo…" : negocio.logo_url ? "Cambiar logo" : "Subir logo", /* @__PURE__ */ React.createElement("input", { type: "file", accept: "image/*", disabled: subiendoLogo, onChange: subirLogo })))), /* @__PURE__ */ React.createElement("label", null, "Nombre del negocio", /* @__PURE__ */ React.createElement(
     "input",
     {
       value: negocio.nombre,

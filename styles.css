@@ -271,6 +271,16 @@ h1,h2,h3,p { text-wrap: pretty; }
 .push-estado.on { color:var(--libre); }
 .push-estado.off { color:var(--muted); }
 
+/* --- Galería de muestras (panel) -------------------------------------- */
+.galeria-add { background:var(--lilac); border-radius:9px; color:var(--purple); cursor:pointer; font-size:12px; font-weight:800; padding:0 16px; min-height:42px; display:inline-flex; align-items:center; }
+.galeria-add input { display:none; }
+.admin-galeria { display:grid; gap:15px; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); margin-top:20px; }
+.admin-galeria-item { padding:14px; }
+.admin-galeria-item img { aspect-ratio:4/3; border-radius:10px; object-fit:cover; width:100%; }
+.admin-galeria-item textarea { background:white; border:1px solid var(--border); border-radius:8px; font-size:12px; margin-top:10px; min-height:56px; padding:8px 10px; resize:vertical; width:100%; }
+.admin-galeria-item-acciones { display:flex; gap:8px; margin-top:10px; }
+.admin-galeria-item-acciones button { flex:1; }
+
 /* --- Ocupación ------------------------------------------------------ */
 .ocupacion-tabla { padding:6px; }
 .ocupacion-scroll { -webkit-overflow-scrolling:touch; overflow-x:auto; }

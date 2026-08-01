@@ -181,6 +181,8 @@ function Panel({ negocioInicial, email }) {
     const [creandoProducto, setCreandoProducto] = useState(false);
     const [reservaManual, setReservaManual] = useState(null);
     const [creandoReserva, setCreandoReserva] = useState(false);
+    const [galeria, setGaleria] = useState([]);
+    const [subiendoFotoGaleria, setSubiendoFotoGaleria] = useState(false);
 
     const moneda = negocio.moneda || 'CUP';
 
@@ -231,8 +233,21 @@ function Panel({ negocioInicial, email }) {
         }
     }, [negocio.id, rango.desde, rango.hasta]);
 
+    const cargarGaleria = useCallback(async () => {
+        try {
+            setGaleria(await window.supaGet(
+                `alquiler_galeria?negocio_id=eq.${negocio.id}` +
+                `&select=id,imagen_url,descripcion,creado_en&order=creado_en.desc`
+            ));
+        } catch (e) {
+            console.error('[Panel] error cargando galería:', e);
+            notificar('No se pudo cargar la galería.');
+        }
+    }, [negocio.id]);
+
     useEffect(() => { cargarProductos(); cargarPedidos(); }, [cargarProductos, cargarPedidos]);
     useEffect(() => { if (pestana === 'ocupacion') cargarOcupacion(); }, [pestana, cargarOcupacion]);
+    useEffect(() => { if (pestana === 'galeria') cargarGaleria(); }, [pestana, cargarGaleria]);
 
     // Si llegamos desde una notificación (?pedido=RD-...), abrir Reservas.
     useEffect(() => {
@@ -401,6 +416,64 @@ function Panel({ negocioInicial, email }) {
         await guardarProducto({ ...producto, foto_url: subida.url });
     }
 
+    // ---- Galería de muestras -------------------------------------------
+    async function agregarFotoGaleria(evento) {
+        const archivo = evento.target.files?.[0];
+        if (!archivo) return;
+        setSubiendoFotoGaleria(true);
+        const subida = await window.subirFotoGaleria(archivo, negocio.id);
+        setSubiendoFotoGaleria(false);
+        if (!subida) return;
+
+        try {
+            const res = await fetch(`${window.SUPABASE_URL}/rest/v1/alquiler_galeria`, {
+                method: 'POST',
+                headers: window.supaHeaders({ Prefer: 'return=representation' }),
+                body: JSON.stringify({ negocio_id: negocio.id, imagen_url: subida.url, descripcion: '' })
+            });
+            if (!res.ok) throw new Error(await res.text());
+            const [creada] = await res.json();
+            setGaleria((actual) => [creada, ...actual]);
+            notificar('Foto agregada a la galería.');
+        } catch (e) {
+            console.error('[Panel] error guardando foto de galería:', e);
+            notificar('La foto se subió pero no se pudo guardar. Inténtalo de nuevo.');
+        }
+    }
+
+    async function guardarDescripcionGaleria(foto) {
+        try {
+            const res = await fetch(
+                `${window.SUPABASE_URL}/rest/v1/alquiler_galeria?id=eq.${foto.id}`,
+                {
+                    method: 'PATCH',
+                    headers: window.supaHeaders({ Prefer: 'return=minimal' }),
+                    body: JSON.stringify({ descripcion: foto.descripcion })
+                }
+            );
+            notificar(res.ok ? 'Descripción guardada.' : 'No se pudo guardar.');
+        } catch (e) {
+            console.error('[Panel] error guardando descripción:', e);
+            notificar('No se pudo guardar.');
+        }
+    }
+
+    async function eliminarFotoGaleria(foto) {
+        if (!window.confirm('¿Quitar esta foto de la galería?')) return;
+        try {
+            const res = await fetch(
+                `${window.SUPABASE_URL}/rest/v1/alquiler_galeria?id=eq.${foto.id}`,
+                { method: 'DELETE', headers: window.supaHeaders({ Prefer: 'return=minimal' }) }
+            );
+            if (res.ok) {
+                setGaleria((actual) => actual.filter((f) => f.id !== foto.id));
+                notificar('Foto eliminada.');
+            }
+        } catch (e) {
+            console.error('[Panel] error eliminando foto de galería:', e);
+        }
+    }
+
     // ---- Reservas -----------------------------------------------------
     async function cambiarEstado(pedido, estado) {
         try {
@@ -550,6 +623,8 @@ function Panel({ negocioInicial, email }) {
                         onClick={() => setPestana('productos')}>Artículos</button>
                     <button className={pestana === 'ocupacion' ? 'active' : ''}
                         onClick={() => setPestana('ocupacion')}>Ocupación</button>
+                    <button className={pestana === 'galeria' ? 'active' : ''}
+                        onClick={() => setPestana('galeria')}>Galería</button>
                     <button className={pestana === 'config' ? 'active' : ''}
                         onClick={() => setPestana('config')}>Configuración</button>
                     <a href={enlaceTienda}>Ver mi tienda ↗</a>
@@ -854,6 +929,47 @@ function Panel({ negocioInicial, email }) {
                                         </table>
                                     </div>
                                 )}
+                            </div>
+                        </>
+                    )}
+
+                    {/* ---- Galería ---- */}
+                    {pestana === 'galeria' && (
+                        <>
+                            <div className="admin-title">
+                                <div>
+                                    <p className="eyebrow">Tu portafolio</p>
+                                    <h1>Galería</h1>
+                                </div>
+                                <label className="upload galeria-add">
+                                    {subiendoFotoGaleria ? 'Subiendo…' : '+ Agregar foto'}
+                                    <input type="file" accept="image/*" disabled={subiendoFotoGaleria}
+                                        onChange={agregarFotoGaleria} />
+                                </label>
+                            </div>
+                            <p className="producto-form-nota">
+                                Estas fotos se ven en tu tienda pública, en la sección
+                                "Nuestros trabajos" — son la prueba de lo que ya has hecho.
+                            </p>
+                            <div className="admin-galeria">
+                                {!galeria.length && (
+                                    <div className="admin-card empty-orders">
+                                        Todavía no tienes fotos. Pulsa «+ Agregar foto» para empezar.
+                                    </div>
+                                )}
+                                {galeria.map((foto) => (
+                                    <article className="admin-galeria-item admin-card" key={foto.id}>
+                                        <img src={foto.imagen_url} alt="" />
+                                        <textarea placeholder="Descripción corta (opcional)"
+                                            value={foto.descripcion}
+                                            onChange={(e) => setGaleria((actual) => actual.map((f) =>
+                                                f.id === foto.id ? { ...f, descripcion: e.target.value } : f))} />
+                                        <div className="admin-galeria-item-acciones">
+                                            <button onClick={() => guardarDescripcionGaleria(foto)}>Guardar</button>
+                                            <button className="danger" onClick={() => eliminarFotoGaleria(foto)}>Eliminar</button>
+                                        </div>
+                                    </article>
+                                ))}
                             </div>
                         </>
                     )}
