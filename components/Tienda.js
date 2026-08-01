@@ -41,6 +41,8 @@ function Tienda() {
     const [errorCarga, setErrorCarga] = useState('');
     const [negocio, setNegocio] = useState(null);
     const [productos, setProductos] = useState([]);
+    const [galeria, setGaleria] = useState([]);
+    const [fotoAmpliada, setFotoAmpliada] = useState(null);
 
     const [inicio, setInicio] = useState('');
     const [fin, setFin] = useState('');
@@ -86,6 +88,12 @@ function Tienda() {
                     `&select=id,nombre,descripcion,categoria,precio_dia,cantidad,foto_url&order=orden.asc,creado_en.asc`
                 );
                 setProductos(items);
+
+                const fotos = await window.supaGet(
+                    `alquiler_galeria?negocio_id=eq.${neg.id}` +
+                    `&select=id,imagen_url,descripcion&order=creado_en.desc`
+                );
+                setGaleria(fotos);
             } catch (e) {
                 console.error('[Tienda] error cargando:', e);
                 setErrorCarga('No se pudo cargar la tienda. Revisa tu conexión.');
@@ -424,6 +432,24 @@ function Tienda() {
                 </div>
             </section>
 
+            {galeria.length > 0 && (
+                <section className="galeria-publica shell" id="trabajos">
+                    <div className="center-head">
+                        <p className="eyebrow">Prueba de lo que hacemos</p>
+                        <h2>Nuestros trabajos</h2>
+                    </div>
+                    <div className="galeria-publica-grid">
+                        {galeria.map((foto) => (
+                            <button className="galeria-publica-item" key={foto.id}
+                                onClick={() => setFotoAmpliada(foto)}>
+                                <img src={foto.imagen_url} alt={foto.descripcion || ''} />
+                                {foto.descripcion && <span>{foto.descripcion}</span>}
+                            </button>
+                        ))}
+                    </div>
+                </section>
+            )}
+
             <footer className="footer shell">
                 <span className="brand"><i>✦</i> {negocio.nombre}</span>
                 <p>Decoraciones que convierten un día especial en un gran recuerdo.</p>
@@ -497,6 +523,18 @@ function Tienda() {
                     )}
                 </div>
             </aside>
+
+            {fotoAmpliada && (
+                <>
+                    <button className="overlay" aria-label="Cerrar" onClick={() => setFotoAmpliada(null)} />
+                    <div className="lightbox">
+                        <button className="lightbox-cerrar" aria-label="Cerrar"
+                            onClick={() => setFotoAmpliada(null)}>×</button>
+                        <img src={fotoAmpliada.imagen_url} alt={fotoAmpliada.descripcion || ''} />
+                        {fotoAmpliada.descripcion && <p>{fotoAmpliada.descripcion}</p>}
+                    </div>
+                </>
+            )}
         </main>
     );
 }

@@ -162,6 +162,18 @@ h1,h2,h3,p { text-wrap: pretty; }
 .footer p { text-align:center; }
 .footer a { text-decoration:underline; text-underline-offset:4px; }
 
+/* --- Galería de muestras (tienda pública) ----------------------------- */
+.galeria-publica { padding-block:100px; }
+.galeria-publica-grid { column-gap:18px; columns:3; margin-top:50px; }
+.galeria-publica-item { background:none; border:0; break-inside:avoid; cursor:pointer; display:block; margin-bottom:18px; padding:0; position:relative; width:100%; }
+.galeria-publica-item img { border-radius:16px; display:block; width:100%; }
+.galeria-publica-item span { background:linear-gradient(to top,rgba(38,29,41,.75),transparent); border-radius:0 0 16px 16px; bottom:0; color:white; font-size:12px; left:0; padding:24px 14px 12px; position:absolute; right:0; text-align:left; }
+
+.lightbox { display:flex; flex-direction:column; align-items:center; gap:14px; inset:5vh 5vw; position:fixed; z-index:70; }
+.lightbox img { border-radius:14px; max-height:80vh; max-width:100%; object-fit:contain; }
+.lightbox p { background:rgba(38,29,41,.75); border-radius:999px; color:white; font-size:13px; margin:0; padding:8px 18px; }
+.lightbox-cerrar { align-self:flex-end; background:white; border:0; border-radius:50%; cursor:pointer; font-size:22px; height:38px; width:38px; }
+
 .overlay { background:rgba(36,25,34,.48); border:0; inset:0; position:fixed; z-index:50; }
 .drawer { background:var(--paper); box-shadow:-20px 0 60px rgba(53,27,38,.22); height:100dvh; max-width:100%; position:fixed; right:0; top:0; transform:translateX(105%); transition:.28s ease; width:500px; z-index:60; }
 .drawer.open { transform:translateX(0); }
@@ -321,7 +333,7 @@ h1,h2,h3,p { text-wrap: pretty; }
    flotando sobre la foto): al apilarse a una columna, la consulta de
    fecha simplemente sigue en el flujo normal, foto debajo. */
 @media(max-width:1100px){.header{grid-template-columns:1fr auto}.header nav{display:none}.hero{grid-template-columns:1fr}.hero-visual{min-height:380px}.hero-visual>img{height:380px;min-height:380px}.product-grid{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:800px){.section-head{align-items:start;flex-direction:column}.steps{grid-template-columns:1fr}.footer{grid-template-columns:1fr}.footer p{text-align:left}}
+@media(max-width:800px){.section-head{align-items:start;flex-direction:column}.steps{grid-template-columns:1fr}.footer{grid-template-columns:1fr}.footer p{text-align:left}.galeria-publica-grid{columns:2}}
 @media(max-width:900px){.admin-shell{grid-template-columns:1fr}.admin-nav{border-bottom:1px solid var(--border);border-right:0;flex-direction:row;overflow-x:auto;padding:15px 20px}.admin-nav button,.admin-nav a{flex:0 0 auto}.admin-nav a{margin-top:0}.admin-product{grid-template-columns:100px 1fr}.admin-product>img{height:100px;width:100px}.product-admin-actions{flex-direction:row;grid-column:1/-1}.admin-order{grid-template-columns:1fr 1fr}.settings-form{grid-template-columns:1fr}.settings-form label.wide{grid-column:auto}}
 @media(max-width:560px){.header{height:72px;padding-inline:16px}.brand{font-size:24px}.brand>span{height:33px;width:33px}.cart-trigger{font-size:0;padding-left:10px}.cart-trigger b{font-size:12px}.shell{padding-inline:17px}.hero{padding-top:42px}.hero h1{font-size:44px}.hero-check{padding:16px}.hero-buttons{align-items:stretch;flex-direction:column}.hero-visual,.hero-visual>img{min-height:280px;height:280px}.hero-visual>img{border-radius:21px}.dates{grid-template-columns:1fr}.section-head h2,.center-head h2{font-size:44px}.filters{flex-wrap:nowrap;margin-inline:-17px;overflow-x:auto;padding-inline:17px}.filters button{flex:0 0 auto}.product-grid{grid-template-columns:1fr}.drawer{width:100%}}
 @media(max-width:560px){.admin-header{align-items:flex-start;gap:15px}.admin-header .brand{font-size:22px}.admin-user{font-size:10px}.admin-content{padding-inline:15px}.admin-title{align-items:flex-start;flex-direction:column;gap:15px}.admin-title h1{font-size:24px}.admin-product{grid-template-columns:1fr}.admin-product>img{height:200px;width:100%}.product-fields>div{grid-template-columns:1fr}.admin-order{grid-template-columns:1fr}.product-admin-actions{flex-wrap:wrap}.producto-form{padding:16px}.producto-form-fila{grid-template-columns:1fr}}
