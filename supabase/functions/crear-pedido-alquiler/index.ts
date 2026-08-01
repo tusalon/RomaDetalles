@@ -79,6 +79,61 @@ function mensajeDeError(raw: string): { mensaje: string; status: number } {
   return { mensaje: "No se pudo guardar el pedido. Inténtalo de nuevo.", status: 500 };
 }
 
+const PLANTILLA_SOLICITUD_POR_DEFECTO =
+  "Hola, deseo solicitar este alquiler ({pedido_id}):\n" +
+  "📅 {fechas}\n" +
+  "\n" +
+  "{items}\n" +
+  "\n" +
+  "💰 Total estimado: {total}\n" +
+  "👤 Cliente: {nombre}\n" +
+  "{telefono}\n" +
+  "{notas}\n" +
+  "Quedo pendiente de confirmación. Gracias.";
+
+/**
+ * Rellena la plantilla de solicitud (editable por el negocio en
+ * Configuración) con los datos reales del pedido. {telefono} y {notas}
+ * llevan su propio prefijo ("📞 ", "📝 ") y quedan vacíos si el dato no
+ * vino — por eso al final se colapsan los saltos de línea de sobra, sin
+ * exigirle al negocio que arme una plantilla "perfecta" sin esos campos.
+ */
+function armarMensajeSolicitud(
+  plantilla: string,
+  datos: {
+    pedidoId: string;
+    fechaInicio: string;
+    fechaFin: string;
+    dias: number;
+    items: Array<{ producto_nombre: string; precio_dia: number; cantidad: number }>;
+    total: number;
+    moneda: string;
+    nombre: string;
+    telefono: string;
+    notas: string;
+  },
+): string {
+  const base = plantilla && plantilla.trim() ? plantilla : PLANTILLA_SOLICITUD_POR_DEFECTO;
+  const fechas = `${datos.fechaInicio} al ${datos.fechaFin} (${datos.dias} ${datos.dias === 1 ? "día" : "días"})`;
+  const items = datos.items
+    .map(
+      (l) =>
+        `• ${l.cantidad} × ${l.producto_nombre} — ${dinero(Number(l.precio_dia) * l.cantidad * datos.dias)} ${datos.moneda}`,
+    )
+    .join("\n");
+
+  const texto = base
+    .replaceAll("{pedido_id}", datos.pedidoId)
+    .replaceAll("{fechas}", fechas)
+    .replaceAll("{items}", items)
+    .replaceAll("{total}", `${dinero(datos.total)} ${datos.moneda}`)
+    .replaceAll("{nombre}", datos.nombre)
+    .replaceAll("{telefono}", datos.telefono ? `📞 ${datos.telefono}` : "")
+    .replaceAll("{notas}", datos.notas ? `📝 ${datos.notas}` : "");
+
+  return texto.replace(/\n{3,}/g, "\n\n").trim();
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Método no permitido" }, 405);
@@ -144,7 +199,7 @@ Deno.serve(async (req) => {
   }
 
   const negocioRes = await fetch(
-    `${supabaseUrl}/rest/v1/alquiler_negocios?${filtro}&activo=eq.true&select=id,nombre,whatsapp,moneda`,
+    `${supabaseUrl}/rest/v1/alquiler_negocios?${filtro}&activo=eq.true&select=id,nombre,whatsapp,moneda,plantilla_solicitud`,
     { headers: auth },
   );
   const negocios = negocioRes.ok ? await negocioRes.json() : [];
@@ -190,23 +245,18 @@ Deno.serve(async (req) => {
   const dias = pedido.dias;
 
   // ---- Mensaje de WhatsApp -----------------------------------------
-  const mensaje = [
-    `Hola, deseo solicitar este alquiler (${pedido.id}):`,
-    `📅 ${pedido.fecha_inicio} al ${pedido.fecha_fin} (${dias} ${dias === 1 ? "día" : "días"})`,
-    "",
-    ...lineas.map(
-      (l) =>
-        `• ${l.cantidad} × ${l.producto_nombre} — ${dinero(Number(l.precio_dia) * l.cantidad * dias)} ${moneda}`,
-    ),
-    "",
-    `💰 Total estimado: ${dinero(Number(pedido.total))} ${moneda}`,
-    `👤 Cliente: ${nombre}`,
-    telefono ? `📞 ${telefono}` : "",
-    notas ? `📝 ${notas}` : "",
-    "Quedo pendiente de confirmación. Gracias.",
-  ]
-    .filter(Boolean)
-    .join("\n");
+  const mensaje = armarMensajeSolicitud(negocio.plantilla_solicitud || "", {
+    pedidoId: pedido.id,
+    fechaInicio: pedido.fecha_inicio,
+    fechaFin: pedido.fecha_fin,
+    dias,
+    items: lineas,
+    total: Number(pedido.total),
+    moneda,
+    nombre,
+    telefono,
+    notas,
+  });
 
   const numero = (negocio.whatsapp || "").replace(/\D/g, "");
   const whatsappUrl = numero
@@ -220,10 +270,13 @@ Deno.serve(async (req) => {
   //
   // Este aviso es lo que arregla el hueco de la versión anterior, donde
   // el negocio solo se enteraba si la clienta pulsaba enviar en WhatsApp.
-  const resumen = lineas
-    .map((l) => `${l.cantidad} × ${l.producto_nombre}`)
-    .join(", ")
-    .slice(0, 160);
+  // El título lleva el nombre de la clienta solo si es corto (cabe en
+  // una línea de notificación sin cortarse); si no, cae a un genérico.
+  // El cuerpo YA NO mete fecha/artículos/total: en pedidos largos esos
+  // datos se cortaban a media palabra al forzar los 160 caracteres. El
+  // detalle completo se ve dentro del panel, donde sí cabe.
+  const tituloPush =
+    nombre && nombre.length <= 20 ? `Nueva solicitud de ${nombre}` : "Tienes una solicitud nueva";
 
   try {
     const controlador = new AbortController();
@@ -235,8 +288,8 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         negocio_id: negocio.id,
         role: "admin",
-        title: `Nuevo pedido de ${nombre}`,
-        body: `${pedido.fecha_inicio} al ${pedido.fecha_fin} · ${dinero(Number(pedido.total))} ${moneda}\n${resumen}`,
+        title: tituloPush,
+        body: "Toca para ver los detalles en el panel.",
         url: `https://tusalon.github.io/RomaDetalles/admin.html?pedido=${pedido.id}`,
       }),
     });
