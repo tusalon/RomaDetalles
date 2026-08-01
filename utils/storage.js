@@ -207,6 +207,18 @@ window.subirLogoNegocio = function(file, negocioId) {
     });
 };
 
+// Foto de la galería de muestras (trabajos ya hechos). 1200px: la foto
+// ES el contenido de esta sección, mismo criterio que la foto de
+// producto — vale la pena algo más de detalle que una miniatura.
+window.subirFotoGaleria = function(file, negocioId) {
+    return subirImagenACloudinary(file, {
+        folder: CLOUDINARY_FOLDER_PRODUCTOS.replace('/productos', '/galeria'),
+        etiqueta: negocioId || 'galeria',
+        tags: 'romadetalles,galeria',
+        maxDimension: 1200
+    });
+};
+
 window.eliminarImagenServicio = async function() {
     console.warn('Para borrar imagenes de Cloudinary hace falta una firma segura desde backend.');
     return true;
