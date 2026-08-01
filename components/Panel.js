@@ -260,6 +260,7 @@ function Panel({ negocioInicial, email }) {
                         logo_url: negocio.logo_url || '',
                         plantilla_confirmacion: negocio.plantilla_confirmacion || '',
                         plantilla_compartir: negocio.plantilla_compartir || '',
+                        plantilla_solicitud: negocio.plantilla_solicitud || '',
                         dias_minimos: Math.max(1, Number(negocio.dias_minimos) || 1),
                         actualizado_en: new Date().toISOString()
                     })
@@ -918,6 +919,11 @@ function Panel({ negocioInicial, email }) {
                                     <textarea value={negocio.plantilla_compartir || ''}
                                         onChange={(e) => setNegocio({ ...negocio, plantilla_compartir: e.target.value })} />
                                     <small>Variables disponibles: {'{nombre}'}, {'{enlace}'}. Se usa en el botón "Compartir tienda".</small>
+                                </label>
+                                <label className="wide">Mensaje de solicitud (de la clienta a ti)
+                                    <textarea value={negocio.plantilla_solicitud || ''}
+                                        onChange={(e) => setNegocio({ ...negocio, plantilla_solicitud: e.target.value })} />
+                                    <small>Variables disponibles: {'{nombre}'}, {'{fechas}'}, {'{items}'}, {'{total}'}, {'{telefono}'}, {'{notas}'}, {'{pedido_id}'}. Es el mensaje que le llega a WhatsApp cuando una clienta pide un alquiler desde tu tienda.</small>
                                 </label>
                                 <label className="wide">Enlace de tu tienda
                                     <input readOnly value={enlaceTiendaCompleto}

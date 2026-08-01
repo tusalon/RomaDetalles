@@ -156,6 +156,7 @@ function Panel({ negocioInicial, email }) {
             logo_url: negocio.logo_url || "",
             plantilla_confirmacion: negocio.plantilla_confirmacion || "",
             plantilla_compartir: negocio.plantilla_compartir || "",
+            plantilla_solicitud: negocio.plantilla_solicitud || "",
             dias_minimos: Math.max(1, Number(negocio.dias_minimos) || 1),
             actualizado_en: (/* @__PURE__ */ new Date()).toISOString()
           })
@@ -647,7 +648,13 @@ function Panel({ negocioInicial, email }) {
       value: negocio.plantilla_compartir || "",
       onChange: (e) => setNegocio({ ...negocio, plantilla_compartir: e.target.value })
     }
-  ), /* @__PURE__ */ React.createElement("small", null, "Variables disponibles: ", "{nombre}", ", ", "{enlace}", '. Se usa en el botón "Compartir tienda".')), /* @__PURE__ */ React.createElement("label", { className: "wide" }, "Enlace de tu tienda", /* @__PURE__ */ React.createElement(
+  ), /* @__PURE__ */ React.createElement("small", null, "Variables disponibles: ", "{nombre}", ", ", "{enlace}", '. Se usa en el botón "Compartir tienda".')), /* @__PURE__ */ React.createElement("label", { className: "wide" }, "Mensaje de solicitud (de la clienta a ti)", /* @__PURE__ */ React.createElement(
+    "textarea",
+    {
+      value: negocio.plantilla_solicitud || "",
+      onChange: (e) => setNegocio({ ...negocio, plantilla_solicitud: e.target.value })
+    }
+  ), /* @__PURE__ */ React.createElement("small", null, "Variables disponibles: ", "{nombre}", ", ", "{fechas}", ", ", "{items}", ", ", "{total}", ", ", "{telefono}", ", ", "{notas}", ", ", "{pedido_id}", ". Es el mensaje que le llega a WhatsApp cuando una clienta pide un alquiler desde tu tienda.")), /* @__PURE__ */ React.createElement("label", { className: "wide" }, "Enlace de tu tienda", /* @__PURE__ */ React.createElement(
     "input",
     {
       readOnly: true,
