@@ -48,12 +48,21 @@ function hoyPanel() {
 
 const PRODUCTO_VACIO = { nombre: '', descripcion: '', categoria: 'Decoración', precio_dia: '', cantidad: 1 };
 
+// Debe reproducir exactamente el default de la columna en
+// sql/03-mejoras-panel.sql (chr(10) allí == '\n' aquí).
+const PLANTILLA_CONFIRMACION_POR_DEFECTO =
+    'Hola {nombre}, tu pedido {pedido_id} quedó confirmado ✅\n' +
+    '📅 {fechas}\n' +
+    '💰 Total: {total}\n' +
+    'Cualquier duda me avisas. ¡Gracias por tu preferencia!';
+
 // Rellena la plantilla de confirmación con los datos reales del pedido.
 // Variables soportadas: {nombre} {pedido_id} {fechas} {total}
 function armarMensajeConfirmacion(plantilla, pedido, moneda) {
     const fechas = `${pedido.fecha_inicio} al ${pedido.fecha_fin} (${pedido.dias} ${pedido.dias === 1 ? 'día' : 'días'})`;
     const total = `${dineroPanel(pedido.total)} ${moneda}`;
-    return (plantilla || '')
+    const base = plantilla && plantilla.trim() ? plantilla : PLANTILLA_CONFIRMACION_POR_DEFECTO;
+    return base
         .replaceAll('{nombre}', pedido.cliente_nombre || '')
         .replaceAll('{pedido_id}', pedido.id || '')
         .replaceAll('{fechas}', fechas)
@@ -395,7 +404,7 @@ function Panel({ negocioInicial, email }) {
                 setProductos((actual) => actual.map((p) =>
                     p.id === producto.id ? { ...p, activo: false } : p));
                 notificar('Artículo oculto en la tienda.');
-            }
+            } else notificar('No se pudo quitar el artículo.');
         } catch (e) {
             console.error('[Panel] error ocultando artículo:', e);
         }
@@ -468,7 +477,7 @@ function Panel({ negocioInicial, email }) {
             if (res.ok) {
                 setGaleria((actual) => actual.filter((f) => f.id !== foto.id));
                 notificar('Foto eliminada.');
-            }
+            } else notificar('No se pudo eliminar la foto.');
         } catch (e) {
             console.error('[Panel] error eliminando foto de galería:', e);
         }
@@ -941,7 +950,7 @@ function Panel({ negocioInicial, email }) {
                                     <p className="eyebrow">Tu portafolio</p>
                                     <h1>Galería</h1>
                                 </div>
-                                <label className="upload galeria-add">
+                                <label className="galeria-add">
                                     {subiendoFotoGaleria ? 'Subiendo…' : '+ Agregar foto'}
                                     <input type="file" accept="image/*" disabled={subiendoFotoGaleria}
                                         onChange={agregarFotoGaleria} />
@@ -1039,7 +1048,7 @@ function Panel({ negocioInicial, email }) {
                                 <label className="wide">Mensaje de solicitud (de la clienta a ti)
                                     <textarea value={negocio.plantilla_solicitud || ''}
                                         onChange={(e) => setNegocio({ ...negocio, plantilla_solicitud: e.target.value })} />
-                                    <small>Variables disponibles: {'{nombre}'}, {'{fechas}'}, {'{items}'}, {'{total}'}, {'{telefono}'}, {'{notas}'}, {'{pedido_id}'}. Es el mensaje que le llega a WhatsApp cuando una clienta pide un alquiler desde tu tienda.</small>
+                                    <small>Variables disponibles: {'{nombre}'}, {'{fechas}'}, {'{items}'}, {'{total}'}, {'{telefono}'}, {'{notas}'}, {'{pedido_id}'}. Es el mensaje que le llega a WhatsApp cuando una clienta pide un alquiler desde tu tienda. {'{telefono}'} y {'{notas}'} ya vienen con su propio emoji (📞 y 📝) y desaparecen del todo si el dato no llegó — ponlas en su propia línea.</small>
                                 </label>
                                 <label className="wide">Enlace de tu tienda
                                     <input readOnly value={enlaceTiendaCompleto}

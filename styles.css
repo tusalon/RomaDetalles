@@ -291,7 +291,9 @@ h1,h2,h3,p { text-wrap: pretty; }
 .admin-galeria-item img { aspect-ratio:4/3; border-radius:10px; object-fit:cover; width:100%; }
 .admin-galeria-item textarea { background:white; border:1px solid var(--border); border-radius:8px; font-size:12px; margin-top:10px; min-height:56px; padding:8px 10px; resize:vertical; width:100%; }
 .admin-galeria-item-acciones { display:flex; gap:8px; margin-top:10px; }
-.admin-galeria-item-acciones button { flex:1; }
+.admin-galeria-item-acciones button { background:var(--burgundy); border:0; border-radius:9px; color:white; cursor:pointer; flex:1; font-size:12px; font-weight:800; min-height:42px; }
+.admin-galeria-item-acciones button.danger { background:var(--ocupado-bg); color:var(--ocupado); }
+.admin-galeria .empty-orders { grid-column:1/-1; }
 
 /* --- Ocupación ------------------------------------------------------ */
 .ocupacion-tabla { padding:6px; }

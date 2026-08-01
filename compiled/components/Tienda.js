@@ -54,13 +54,18 @@ function Tienda() {
         }
         const neg = negocios[0];
         setNegocio(neg);
-        const items = await window.supaGet(
-          `alquiler_productos?negocio_id=eq.${neg.id}&activo=eq.true&select=id,nombre,descripcion,categoria,precio_dia,cantidad,foto_url&order=orden.asc,creado_en.asc`
-        );
+        const [items, fotos] = await Promise.all([
+          window.supaGet(
+            `alquiler_productos?negocio_id=eq.${neg.id}&activo=eq.true&select=id,nombre,descripcion,categoria,precio_dia,cantidad,foto_url&order=orden.asc,creado_en.asc`
+          ),
+          window.supaGet(
+            `alquiler_galeria?negocio_id=eq.${neg.id}&select=id,imagen_url,descripcion&order=creado_en.desc`
+          ).catch((e) => {
+            console.warn("[Tienda] galería no disponible:", e);
+            return [];
+          })
+        ]);
         setProductos(items);
-        const fotos = await window.supaGet(
-          `alquiler_galeria?negocio_id=eq.${neg.id}&select=id,imagen_url,descripcion&order=creado_en.desc`
-        );
         setGaleria(fotos);
       } catch (e) {
         console.error("[Tienda] error cargando:", e);
@@ -267,9 +272,10 @@ function Tienda() {
     {
       className: "galeria-publica-item",
       key: foto.id,
+      "aria-label": foto.descripcion || "Ver foto del trabajo",
       onClick: () => setFotoAmpliada(foto)
     },
-    /* @__PURE__ */ React.createElement("img", { src: foto.imagen_url, alt: foto.descripcion || "" }),
+    /* @__PURE__ */ React.createElement("img", { src: foto.imagen_url, alt: "", loading: "lazy" }),
     foto.descripcion && /* @__PURE__ */ React.createElement("span", null, foto.descripcion)
   )))), /* @__PURE__ */ React.createElement("footer", { className: "footer shell" }, /* @__PURE__ */ React.createElement("span", { className: "brand" }, /* @__PURE__ */ React.createElement("i", null, "✦"), " ", negocio.nombre), /* @__PURE__ */ React.createElement("p", null, "Decoraciones que convierten un día especial en un gran recuerdo."), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "18px" } }, negocio.instagram_url && /* @__PURE__ */ React.createElement("a", { href: negocio.instagram_url, target: "_blank", rel: "noopener" }, "Instagram"), negocio.facebook_url && /* @__PURE__ */ React.createElement("a", { href: negocio.facebook_url, target: "_blank", rel: "noopener" }, "Facebook"))), totalArticulos > 0 && !cajonAbierto && /* @__PURE__ */ React.createElement("button", { className: "continuar-barra", onClick: () => setCajonAbierto(true) }, /* @__PURE__ */ React.createElement("span", null, totalArticulos, " ", totalArticulos === 1 ? "artículo" : "artículos", " · ", dinero(totalDiario * dias), " ", moneda), /* @__PURE__ */ React.createElement("b", null, "Continuar →")), cajonAbierto && /* @__PURE__ */ React.createElement("button", { className: "overlay", "aria-label": "Cerrar", onClick: () => setCajonAbierto(false) }), /* @__PURE__ */ React.createElement("aside", { className: `drawer ${cajonAbierto ? "open" : ""}` }, /* @__PURE__ */ React.createElement("div", { className: "drawer-head" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("small", null, "Tu selección"), /* @__PURE__ */ React.createElement("h2", null, "Mi pedido")), /* @__PURE__ */ React.createElement("button", { onClick: () => setCajonAbierto(false), "aria-label": "Cerrar" }, "×")), /* @__PURE__ */ React.createElement("div", { className: "drawer-content" }, dias > 0 && /* @__PURE__ */ React.createElement("p", { className: "drawer-date" }, "◫ ", inicio, " — ", fin, " · ", dias, " ", dias === 1 ? "día" : "días"), !enCarrito.length ? /* @__PURE__ */ React.createElement("div", { className: "empty" }, /* @__PURE__ */ React.createElement("span", null, "✦"), /* @__PURE__ */ React.createElement("h3", null, "Tu combo empieza aquí"), /* @__PURE__ */ React.createElement("p", null, "Agrega los artículos que harán único tu evento.")) : /* @__PURE__ */ React.createElement(React.Fragment, null, enCarrito.map((producto) => /* @__PURE__ */ React.createElement("div", { className: "cart-line", key: producto.id }, /* @__PURE__ */ React.createElement("img", { src: producto.foto_url || "images/producto-arco.png", alt: "" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("strong", null, producto.nombre), /* @__PURE__ */ React.createElement("small", null, dinero(producto.precio_dia), " ", moneda, " / día")), /* @__PURE__ */ React.createElement("div", { className: "qty" }, /* @__PURE__ */ React.createElement("button", { onClick: () => quitar(producto), "aria-label": "Quitar uno" }, "−"), /* @__PURE__ */ React.createElement("span", null, carrito[producto.id]), /* @__PURE__ */ React.createElement(
     "button",

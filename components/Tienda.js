@@ -83,16 +83,20 @@ function Tienda() {
                 const neg = negocios[0];
                 setNegocio(neg);
 
-                const items = await window.supaGet(
-                    `alquiler_productos?negocio_id=eq.${neg.id}&activo=eq.true` +
-                    `&select=id,nombre,descripcion,categoria,precio_dia,cantidad,foto_url&order=orden.asc,creado_en.asc`
-                );
+                const [items, fotos] = await Promise.all([
+                    window.supaGet(
+                        `alquiler_productos?negocio_id=eq.${neg.id}&activo=eq.true` +
+                        `&select=id,nombre,descripcion,categoria,precio_dia,cantidad,foto_url&order=orden.asc,creado_en.asc`
+                    ),
+                    window.supaGet(
+                        `alquiler_galeria?negocio_id=eq.${neg.id}` +
+                        `&select=id,imagen_url,descripcion&order=creado_en.desc`
+                    ).catch((e) => {
+                        console.warn('[Tienda] galería no disponible:', e);
+                        return []; // la galería es un extra: si falla, la tienda sigue vendiendo
+                    })
+                ]);
                 setProductos(items);
-
-                const fotos = await window.supaGet(
-                    `alquiler_galeria?negocio_id=eq.${neg.id}` +
-                    `&select=id,imagen_url,descripcion&order=creado_en.desc`
-                );
                 setGaleria(fotos);
             } catch (e) {
                 console.error('[Tienda] error cargando:', e);
@@ -441,8 +445,9 @@ function Tienda() {
                     <div className="galeria-publica-grid">
                         {galeria.map((foto) => (
                             <button className="galeria-publica-item" key={foto.id}
+                                aria-label={foto.descripcion || 'Ver foto del trabajo'}
                                 onClick={() => setFotoAmpliada(foto)}>
-                                <img src={foto.imagen_url} alt={foto.descripcion || ''} />
+                                <img src={foto.imagen_url} alt="" loading="lazy" />
                                 {foto.descripcion && <span>{foto.descripcion}</span>}
                             </button>
                         ))}

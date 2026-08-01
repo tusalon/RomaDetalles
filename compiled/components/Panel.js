@@ -18,10 +18,12 @@ function hoyPanel() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 const PRODUCTO_VACIO = { nombre: "", descripcion: "", categoria: "Decoración", precio_dia: "", cantidad: 1 };
+const PLANTILLA_CONFIRMACION_POR_DEFECTO = "Hola {nombre}, tu pedido {pedido_id} quedó confirmado ✅\n📅 {fechas}\n💰 Total: {total}\nCualquier duda me avisas. ¡Gracias por tu preferencia!";
 function armarMensajeConfirmacion(plantilla, pedido, moneda) {
   const fechas = `${pedido.fecha_inicio} al ${pedido.fecha_fin} (${pedido.dias} ${pedido.dias === 1 ? "día" : "días"})`;
   const total = `${dineroPanel(pedido.total)} ${moneda}`;
-  return (plantilla || "").replaceAll("{nombre}", pedido.cliente_nombre || "").replaceAll("{pedido_id}", pedido.id || "").replaceAll("{fechas}", fechas).replaceAll("{total}", total);
+  const base = plantilla && plantilla.trim() ? plantilla : PLANTILLA_CONFIRMACION_POR_DEFECTO;
+  return base.replaceAll("{nombre}", pedido.cliente_nombre || "").replaceAll("{pedido_id}", pedido.id || "").replaceAll("{fechas}", fechas).replaceAll("{total}", total);
 }
 function mensajeDeErrorReserva(error) {
   const texto = String(error?.message || error || "");
@@ -279,7 +281,7 @@ function Panel({ negocioInicial, email }) {
       if (res.ok) {
         setProductos((actual) => actual.map((p) => p.id === producto.id ? { ...p, activo: false } : p));
         notificar("Artículo oculto en la tienda.");
-      }
+      } else notificar("No se pudo quitar el artículo.");
     } catch (e) {
       console.error("[Panel] error ocultando artículo:", e);
     }
@@ -342,7 +344,7 @@ function Panel({ negocioInicial, email }) {
       if (res.ok) {
         setGaleria((actual) => actual.filter((f) => f.id !== foto.id));
         notificar("Foto eliminada.");
-      }
+      } else notificar("No se pudo eliminar la foto.");
     } catch (e) {
       console.error("[Panel] error eliminando foto de galería:", e);
     }
@@ -656,7 +658,7 @@ function Panel({ negocioInicial, email }) {
       min: rango.desde,
       onChange: (e) => setRango({ ...rango, hasta: e.target.value })
     }
-  )))), /* @__PURE__ */ React.createElement("div", { className: "admin-card ocupacion-tabla" }, !ocupacion.length ? /* @__PURE__ */ React.createElement("p", { className: "ocupacion-vacia" }, "Todavía no hay reservas confirmadas en este período.") : /* @__PURE__ */ React.createElement("div", { className: "ocupacion-scroll" }, /* @__PURE__ */ React.createElement("table", null, /* @__PURE__ */ React.createElement("thead", null, /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("th", null, "Artículo"), /* @__PURE__ */ React.createElement("th", { className: "num" }, "Veces"), /* @__PURE__ */ React.createElement("th", { className: "num" }, "Días"), /* @__PURE__ */ React.createElement("th", { className: "num" }, "Ingreso"))), /* @__PURE__ */ React.createElement("tbody", null, ocupacion.map((fila) => /* @__PURE__ */ React.createElement("tr", { key: fila.producto_id }, /* @__PURE__ */ React.createElement("td", null, fila.producto_nombre), /* @__PURE__ */ React.createElement("td", { className: "num" }, fila.veces_alquilado), /* @__PURE__ */ React.createElement("td", { className: "num" }, fila.dias_alquilado), /* @__PURE__ */ React.createElement("td", { className: "num" }, dineroPanel(fila.ingreso), " ", moneda)))))))), pestana === "galeria" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "admin-title" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "Tu portafolio"), /* @__PURE__ */ React.createElement("h1", null, "Galería")), /* @__PURE__ */ React.createElement("label", { className: "upload galeria-add" }, subiendoFotoGaleria ? "Subiendo…" : "+ Agregar foto", /* @__PURE__ */ React.createElement(
+  )))), /* @__PURE__ */ React.createElement("div", { className: "admin-card ocupacion-tabla" }, !ocupacion.length ? /* @__PURE__ */ React.createElement("p", { className: "ocupacion-vacia" }, "Todavía no hay reservas confirmadas en este período.") : /* @__PURE__ */ React.createElement("div", { className: "ocupacion-scroll" }, /* @__PURE__ */ React.createElement("table", null, /* @__PURE__ */ React.createElement("thead", null, /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("th", null, "Artículo"), /* @__PURE__ */ React.createElement("th", { className: "num" }, "Veces"), /* @__PURE__ */ React.createElement("th", { className: "num" }, "Días"), /* @__PURE__ */ React.createElement("th", { className: "num" }, "Ingreso"))), /* @__PURE__ */ React.createElement("tbody", null, ocupacion.map((fila) => /* @__PURE__ */ React.createElement("tr", { key: fila.producto_id }, /* @__PURE__ */ React.createElement("td", null, fila.producto_nombre), /* @__PURE__ */ React.createElement("td", { className: "num" }, fila.veces_alquilado), /* @__PURE__ */ React.createElement("td", { className: "num" }, fila.dias_alquilado), /* @__PURE__ */ React.createElement("td", { className: "num" }, dineroPanel(fila.ingreso), " ", moneda)))))))), pestana === "galeria" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "admin-title" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "Tu portafolio"), /* @__PURE__ */ React.createElement("h1", null, "Galería")), /* @__PURE__ */ React.createElement("label", { className: "galeria-add" }, subiendoFotoGaleria ? "Subiendo…" : "+ Agregar foto", /* @__PURE__ */ React.createElement(
     "input",
     {
       type: "file",
@@ -744,7 +746,7 @@ function Panel({ negocioInicial, email }) {
       value: negocio.plantilla_solicitud || "",
       onChange: (e) => setNegocio({ ...negocio, plantilla_solicitud: e.target.value })
     }
-  ), /* @__PURE__ */ React.createElement("small", null, "Variables disponibles: ", "{nombre}", ", ", "{fechas}", ", ", "{items}", ", ", "{total}", ", ", "{telefono}", ", ", "{notas}", ", ", "{pedido_id}", ". Es el mensaje que le llega a WhatsApp cuando una clienta pide un alquiler desde tu tienda.")), /* @__PURE__ */ React.createElement("label", { className: "wide" }, "Enlace de tu tienda", /* @__PURE__ */ React.createElement(
+  ), /* @__PURE__ */ React.createElement("small", null, "Variables disponibles: ", "{nombre}", ", ", "{fechas}", ", ", "{items}", ", ", "{total}", ", ", "{telefono}", ", ", "{notas}", ", ", "{pedido_id}", ". Es el mensaje que le llega a WhatsApp cuando una clienta pide un alquiler desde tu tienda. ", "{telefono}", " y ", "{notas}", " ya vienen con su propio emoji (📞 y 📝) y desaparecen del todo si el dato no llegó — ponlas en su propia línea.")), /* @__PURE__ */ React.createElement("label", { className: "wide" }, "Enlace de tu tienda", /* @__PURE__ */ React.createElement(
     "input",
     {
       readOnly: true,
