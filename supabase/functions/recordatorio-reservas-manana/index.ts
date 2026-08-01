@@ -55,8 +55,7 @@ Deno.serve(async (req) => {
   // en curso.
   const res = await fetch(
     `${supabaseUrl}/rest/v1/alquiler_pedidos?fecha_inicio=eq.${manana}` +
-    `&estado=in.(confirmado,entregado)&select=negocio_id,cliente_nombre,cliente_telefono,` +
-    `alquiler_pedido_items(producto_nombre,cantidad)`,
+    `&estado=in.(confirmado,entregado)&select=negocio_id,cliente_nombre,cliente_telefono`,
     { headers },
   );
   if (!res.ok) return json({ error: "Error consultando reservas" }, 500);
@@ -77,13 +76,9 @@ Deno.serve(async (req) => {
   const errores: string[] = [];
 
   for (const [negocioId, reservas] of Object.entries(porNegocio)) {
-    const lineas = reservas.map((r: any) => {
-      const items = (r.alquiler_pedido_items || [])
-        .map((i: any) => `${i.cantidad}× ${i.producto_nombre}`)
-        .join(", ");
-      return `• ${r.cliente_nombre}${items ? " — " + items : ""}`;
-    });
-
+    // El cuerpo ya no lista cliente por cliente ni artículo por
+    // artículo: con varias entregas mañana esa lista se hacía larga y
+    // se cortaba. El detalle completo está en la pestaña Reservas.
     const pushRes = await fetch(`${supabaseUrl}/functions/v1/enviar-web-push`, {
       method: "POST",
       headers: { ...headers, "Content-Type": "application/json" },
@@ -91,7 +86,7 @@ Deno.serve(async (req) => {
         negocio_id: negocioId,
         role: "admin",
         title: `Mañana tienes ${reservas.length} ${reservas.length === 1 ? "entrega" : "entregas"}`,
-        body: lineas.join("\n"),
+        body: "Toca para ver el detalle en el panel.",
         url: "https://tusalon.github.io/RomaDetalles/admin.html",
       }),
     });
