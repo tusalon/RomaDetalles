@@ -56,13 +56,6 @@ function mensajeDeError(raw: string): { mensaje: string; status: number } {
       status: 409,
     };
   }
-  if (raw.includes("MINIMO_DIAS")) {
-    const dias = raw.split("MINIMO_DIAS:")[1]?.split("\n")[0]?.trim();
-    return {
-      mensaje: `Este negocio alquila por un mínimo de ${dias || "varios"} día(s).`,
-      status: 400,
-    };
-  }
   if (raw.includes("PERIODO_INVALIDO")) {
     return { mensaje: "El período de alquiler no es válido.", status: 400 };
   }
@@ -81,11 +74,12 @@ function mensajeDeError(raw: string): { mensaje: string; status: number } {
 
 const PLANTILLA_SOLICITUD_POR_DEFECTO =
   "Hola, deseo solicitar este alquiler ({pedido_id}):\n" +
-  "📅 {fechas}\n" +
+  "📅 Evento: {fechas}\n" +
   "\n" +
   "{items}\n" +
   "\n" +
-  "💰 Total estimado: {total}\n" +
+  "💰 Total: {total}\n" +
+  "{anticipo}\n" +
   "👤 Cliente: {nombre}\n" +
   "{telefono}\n" +
   "{notas}\n" +
@@ -93,40 +87,54 @@ const PLANTILLA_SOLICITUD_POR_DEFECTO =
 
 /**
  * Rellena la plantilla de solicitud (editable por el negocio en
- * Configuración) con los datos reales del pedido. {telefono} y {notas}
- * llevan su propio prefijo ("📞 ", "📝 ") y quedan vacíos si el dato no
- * vino — por eso al final se colapsan los saltos de línea de sobra, sin
- * exigirle al negocio que arme una plantilla "perfecta" sin esos campos.
+ * Configuración) con los datos reales del pedido. {telefono}, {notas} y
+ * {anticipo} llevan su propio prefijo y quedan vacíos si el dato no
+ * aplica — por eso al final se colapsan los saltos de línea de sobra, sin
+ * exigirle al negocio una plantilla "perfecta" sin esos campos.
  */
 function armarMensajeSolicitud(
   plantilla: string,
   datos: {
     pedidoId: string;
-    fechaInicio: string;
-    fechaFin: string;
-    dias: number;
+    fechaEvento: string;
     items: Array<{ producto_nombre: string; precio_dia: number; cantidad: number }>;
     total: number;
+    anticipo: number;
     moneda: string;
     nombre: string;
     telefono: string;
     notas: string;
+    tarjeta: string;
+    telefonoPago: string;
   },
 ): string {
   const base = plantilla && plantilla.trim() ? plantilla : PLANTILLA_SOLICITUD_POR_DEFECTO;
-  const fechas = `${datos.fechaInicio} al ${datos.fechaFin} (${datos.dias} ${datos.dias === 1 ? "día" : "días"})`;
+
   const items = datos.items
     .map(
       (l) =>
-        `• ${l.cantidad} × ${l.producto_nombre} — ${dinero(Number(l.precio_dia) * l.cantidad * datos.dias)} ${datos.moneda}`,
+        `• ${l.cantidad} × ${l.producto_nombre} — ${dinero(Number(l.precio_dia) * l.cantidad)} ${datos.moneda}`,
     )
     .join("\n");
 
+  // El bloque de anticipo se arma entero aquí (o queda vacío): así el
+  // negocio solo pone {anticipo} en su plantilla y no tiene que saber
+  // condicionar nada.
+  const lineasAnticipo: string[] = [];
+  if (datos.anticipo > 0) {
+    lineasAnticipo.push(`💳 Anticipo a pagar: ${dinero(datos.anticipo)} ${datos.moneda}`);
+    if (datos.tarjeta) lineasAnticipo.push(`Tarjeta: ${datos.tarjeta}`);
+    if (datos.telefonoPago) lineasAnticipo.push(`Teléfono: ${datos.telefonoPago}`);
+  }
+
   const texto = base
     .replaceAll("{pedido_id}", datos.pedidoId)
-    .replaceAll("{fechas}", fechas)
+    .replaceAll("{fechas}", datos.fechaEvento)
     .replaceAll("{items}", items)
     .replaceAll("{total}", `${dinero(datos.total)} ${datos.moneda}`)
+    .replaceAll("{anticipo}", lineasAnticipo.join("\n"))
+    .replaceAll("{tarjeta}", datos.tarjeta)
+    .replaceAll("{telefono_pago}", datos.telefonoPago)
     .replaceAll("{nombre}", datos.nombre)
     .replaceAll("{telefono}", datos.telefono ? `📞 ${datos.telefono}` : "")
     .replaceAll("{notas}", datos.notas ? `📝 ${datos.notas}` : "");
@@ -160,11 +168,8 @@ Deno.serve(async (req) => {
   const notas = texto(body.notas, 500);
 
   if (!nombre) return json({ error: "Escribe tu nombre para continuar." }, 400);
-  if (!esFecha(body.fecha_inicio) || !esFecha(body.fecha_fin)) {
-    return json({ error: "Selecciona fechas válidas." }, 400);
-  }
-  if (body.fecha_fin < body.fecha_inicio) {
-    return json({ error: "La fecha final no puede ser antes de la inicial." }, 400);
+  if (!esFecha(body.fecha_evento)) {
+    return json({ error: "Selecciona el día de tu evento." }, 400);
   }
   if (!Array.isArray(body.items) || body.items.length === 0) {
     return json({ error: "Tu pedido está vacío." }, 400);
@@ -199,7 +204,7 @@ Deno.serve(async (req) => {
   }
 
   const negocioRes = await fetch(
-    `${supabaseUrl}/rest/v1/alquiler_negocios?${filtro}&activo=eq.true&select=id,nombre,whatsapp,moneda,plantilla_solicitud`,
+    `${supabaseUrl}/rest/v1/alquiler_negocios?${filtro}&activo=eq.true&select=id,nombre,whatsapp,moneda,plantilla_solicitud,pago_tarjeta,pago_telefono`,
     { headers: auth },
   );
   const negocios = negocioRes.ok ? await negocioRes.json() : [];
@@ -215,8 +220,7 @@ Deno.serve(async (req) => {
       p_nombre: nombre,
       p_telefono: telefono,
       p_notas: notas,
-      p_inicio: body.fecha_inicio,
-      p_fin: body.fecha_fin,
+      p_evento: body.fecha_evento,
       p_items: items,
     }),
   });
@@ -247,15 +251,16 @@ Deno.serve(async (req) => {
   // ---- Mensaje de WhatsApp -----------------------------------------
   const mensaje = armarMensajeSolicitud(negocio.plantilla_solicitud || "", {
     pedidoId: pedido.id,
-    fechaInicio: pedido.fecha_inicio,
-    fechaFin: pedido.fecha_fin,
-    dias,
+    fechaEvento: pedido.fecha_evento,
     items: lineas,
     total: Number(pedido.total),
+    anticipo: Number(pedido.anticipo || 0),
     moneda,
     nombre,
     telefono,
     notas,
+    tarjeta: negocio.pago_tarjeta || "",
+    telefonoPago: negocio.pago_telefono || "",
   });
 
   const numero = (negocio.whatsapp || "").replace(/\D/g, "");
@@ -305,6 +310,7 @@ Deno.serve(async (req) => {
     {
       pedido_id: pedido.id,
       total: Number(pedido.total),
+      anticipo: Number(pedido.anticipo || 0),
       moneda,
       dias,
       expira_en: pedido.expira_en,
