@@ -19,7 +19,9 @@ function dinero(valor) {
 }
 
 // El evento más cercano posible es mañana: si fuera hoy, la recogida
-// (la tarde anterior) ya habría pasado.
+// (la tarde anterior) ya habría pasado. Fecha local, no UTC: en Cuba
+// (UTC-4/-5) usar toISOString() haría que después de las 19:00 esto
+// saltara un día más de la cuenta.
 function mananaISO() {
     const d = new Date();
     d.setDate(d.getDate() + 1);
@@ -450,8 +452,8 @@ function Tienda() {
                     <h2>Tu decoración lista en tres pasos</h2>
                 </div>
                 <div className="steps">
-                    <article><b>01</b><span>◫</span><h3>Elige las fechas</h3>
-                        <p>Indica los días para comprobar cada artículo.</p></article>
+                    <article><b>01</b><span>◫</span><h3>Elige tu fecha</h3>
+                        <p>Indica el día de tu evento para comprobar cada artículo.</p></article>
                     <article><b>02</b><span>✦</span><h3>Crea tu combo</h3>
                         <p>Combina productos y mira el total al instante.</p></article>
                     <article><b>03</b><span>◉</span><h3>Confirma por WhatsApp</h3>

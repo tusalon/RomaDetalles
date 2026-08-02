@@ -251,6 +251,10 @@ h1,h2,h3,p { text-wrap: pretty; }
 .settings-form { display:grid; gap:18px; grid-template-columns:1fr 1fr; padding:28px; }
 .settings-form label,.product-fields label { color:var(--muted); font-size:11px; font-weight:700; }
 .settings-form label.wide { grid-column:1/-1; }
+/* Aviso de configuración a medio hacer (ej. anticipo sin tarjeta): mismo
+   tono que .login-error (rojo de --ocupado), pero dentro de settings-form
+   necesita ocupar las dos columnas del grid como .wide. */
+.config-warning { background:var(--ocupado-bg); border-radius:9px; color:var(--ocupado); font-size:12px; grid-column:1/-1; line-height:1.6; margin:0; padding:11px 13px; }
 .settings-form input,.settings-form textarea,.product-fields input,.product-fields textarea { background:white; border:1px solid var(--border); border-radius:8px; display:block; margin-top:6px; min-height:43px; padding:9px 11px; width:100%; }
 .settings-form textarea { min-height:100px; resize:vertical; }
 .admin-products,.admin-orders { display:grid; gap:15px; }

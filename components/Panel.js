@@ -59,7 +59,14 @@ const PLANTILLA_CONFIRMACION_POR_DEFECTO =
 // Rellena la plantilla de confirmación con los datos reales del pedido.
 // Variables soportadas: {nombre} {pedido_id} {fechas} {total}
 function armarMensajeConfirmacion(plantilla, pedido, moneda) {
-    const fechas = pedido.fecha_evento || pedido.fecha_inicio;
+    // El backfill de la migración a día de evento puso fecha_evento =
+    // fecha_inicio en todo pedido viejo, incluyendo alquileres de varios
+    // días (dias > 1). Para esos hay que seguir mostrando el rango real
+    // (fecha_inicio al fecha_fin), o la clienta pierde de vista cuándo
+    // debe devolver el artículo.
+    const fechas = pedido.dias > 1
+        ? `${pedido.fecha_inicio} al ${pedido.fecha_fin} (${pedido.dias} días)`
+        : (pedido.fecha_evento || pedido.fecha_inicio);
     const total = `${dineroPanel(pedido.total)} ${moneda}`;
     const base = plantilla && plantilla.trim() ? plantilla : PLANTILLA_CONFIRMACION_POR_DEFECTO;
     return base
@@ -730,8 +737,12 @@ function Panel({ negocioInicial, email }) {
                                                 {ETIQUETA_ESTADO[pedido.estado] || pedido.estado}
                                             </span>
                                             <h3>{pedido.cliente_nombre}</h3>
-                                            <p>{pedido.id} · Evento: {pedido.fecha_evento || pedido.fecha_inicio}</p>
-                                            <p>Recoge el {pedido.fecha_inicio} después de las 5:00 PM</p>
+                                            {pedido.dias > 1
+                                                ? <p>{pedido.id} · Reserva anterior: {pedido.fecha_inicio} al {pedido.fecha_fin} · {pedido.dias} días</p>
+                                                : <p>{pedido.id} · Evento: {pedido.fecha_evento || pedido.fecha_inicio}</p>}
+                                            {pedido.dias <= 1 && (
+                                                <p>Recoge el {pedido.fecha_inicio} después de las 5:00 PM</p>
+                                            )}
                                             {pedido.cliente_telefono && (
                                                 <p>📞 <a href={`tel:${pedido.cliente_telefono}`}>{pedido.cliente_telefono}</a></p>
                                             )}
@@ -1027,6 +1038,17 @@ function Panel({ negocioInicial, email }) {
                                     <textarea value={negocio.texto_bienvenida}
                                         onChange={(e) => setNegocio({ ...negocio, texto_bienvenida: e.target.value })} />
                                 </label>
+                                {Number(negocio.anticipo_porciento) > 0 && !negocio.pago_tarjeta && (
+                                    <p className="config-warning">
+                                        Configuraste un anticipo pero no una tarjeta para cobrarlo — tus clientas no sabrán a dónde transferir.
+                                    </p>
+                                )}
+                                {Number(negocio.anticipo_porciento) > 0 && negocio.plantilla_solicitud &&
+                                    !negocio.plantilla_solicitud.includes('{anticipo}') && !negocio.plantilla_solicitud.includes('{tarjeta}') && (
+                                    <p className="config-warning">
+                                        Tu mensaje de solicitud personalizado no menciona el anticipo — tus clientas no lo verán en WhatsApp. Agrega {'{anticipo}'} donde quieras que aparezca.
+                                    </p>
+                                )}
                                 <label>Anticipo (%)
                                     <input type="number" min="0" max="100" inputMode="numeric"
                                         value={negocio.anticipo_porciento ?? 0}
