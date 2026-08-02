@@ -28,6 +28,15 @@ function dineroPanel(valor) {
     return new Intl.NumberFormat('es', { maximumFractionDigits: 0 }).format(valor || 0);
 }
 
+// "sábado 15 de agosto" en vez de "2026-08-15". Mediodía UTC como ancla,
+// igual que diaAntes() en Tienda.js, para que el texto no se corra un
+// día por el huso horario.
+function fechaLargaPanel(iso) {
+    if (!iso) return '';
+    return new Date(`${iso}T12:00:00Z`)
+        .toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' });
+}
+
 const ETIQUETA_ESTADO = {
     pendiente: 'Pendiente',
     confirmado: 'Confirmada',
@@ -65,8 +74,8 @@ function armarMensajeConfirmacion(plantilla, pedido, moneda) {
     // (fecha_inicio al fecha_fin), o la clienta pierde de vista cuándo
     // debe devolver el artículo.
     const fechas = pedido.dias > 1
-        ? `${pedido.fecha_inicio} al ${pedido.fecha_fin} (${pedido.dias} días)`
-        : (pedido.fecha_evento || pedido.fecha_inicio);
+        ? `${fechaLargaPanel(pedido.fecha_inicio)} al ${fechaLargaPanel(pedido.fecha_fin)} (${pedido.dias} días)`
+        : fechaLargaPanel(pedido.fecha_evento || pedido.fecha_inicio);
     const total = `${dineroPanel(pedido.total)} ${moneda}`;
     const base = plantilla && plantilla.trim() ? plantilla : PLANTILLA_CONFIRMACION_POR_DEFECTO;
     return base
@@ -83,9 +92,9 @@ function mensajeDeErrorReserva(error) {
     const texto = String(error?.message || error || '');
     if (texto.includes('SIN_STOCK')) {
         const nombre = texto.split('SIN_STOCK:')[1]?.split('\n')[0]?.trim();
-        return nombre ? `${nombre} no tiene stock suficiente en esas fechas.` : 'No hay stock suficiente en esas fechas.';
+        return nombre ? `${nombre} no tiene stock suficiente ese día.` : 'No hay stock suficiente ese día.';
     }
-    if (texto.includes('PERIODO_INVALIDO')) return 'El período de fechas no es válido.';
+    if (texto.includes('PERIODO_INVALIDO')) return 'Ese día no es válido.';
     if (texto.includes('PEDIDO_VACIO')) return 'Elige al menos un artículo.';
     if (texto.includes('PRODUCTO_NO_EXISTE')) return 'Uno de los artículos ya no existe.';
     if (texto.includes('NO_AUTORIZADO')) return 'No tienes permiso para crear reservas en este negocio.';
@@ -738,10 +747,10 @@ function Panel({ negocioInicial, email }) {
                                             </span>
                                             <h3>{pedido.cliente_nombre}</h3>
                                             {pedido.dias > 1
-                                                ? <p>{pedido.id} · Reserva anterior: {pedido.fecha_inicio} al {pedido.fecha_fin} · {pedido.dias} días</p>
-                                                : <p>{pedido.id} · Evento: {pedido.fecha_evento || pedido.fecha_inicio}</p>}
+                                                ? <p>{pedido.id} · Reserva anterior: {fechaLargaPanel(pedido.fecha_inicio)} al {fechaLargaPanel(pedido.fecha_fin)} · {pedido.dias} días</p>
+                                                : <p>{pedido.id} · Evento: {fechaLargaPanel(pedido.fecha_evento || pedido.fecha_inicio)}</p>}
                                             {pedido.dias <= 1 && (
-                                                <p>Recoge el {pedido.fecha_inicio} después de las 5:00 PM</p>
+                                                <p>Recoge el {fechaLargaPanel(pedido.fecha_inicio)} después de las 5:00 PM</p>
                                             )}
                                             {pedido.cliente_telefono && (
                                                 <p>📞 <a href={`tel:${pedido.cliente_telefono}`}>{pedido.cliente_telefono}</a></p>
@@ -911,7 +920,8 @@ function Panel({ negocioInicial, email }) {
                                 <p>
                                     Días que estuvo alquilado cada artículo en el período elegido.
                                     Lo de arriba es lo que más te produce; lo de abajo, lo que te
-                                    está ocupando espacio.
+                                    está ocupando espacio. Cada evento cuenta 2 días: la tarde que
+                                    se recoge y la mañana que se entrega.
                                 </p>
                                 <div className="dates" style={{ maxWidth: '360px' }}>
                                     <label>Desde

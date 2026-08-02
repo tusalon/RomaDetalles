@@ -215,7 +215,7 @@ h1,h2,h3,p { text-wrap: pretty; }
 .datos-pago strong { color:var(--purple); display:block; font-size:12px; }
 .datos-pago p { color:var(--ink); font-size:13px; margin:8px 0 0; }
 .datos-pago b { font-variant-numeric:tabular-nums; }
-.datos-pago small { color:var(--muted); display:block; font-size:10px; margin-top:10px; }
+.datos-pago small { color:var(--purple); display:block; font-size:10px; font-weight:700; margin-top:10px; }
 .checkout { display:grid; gap:10px; margin-top:22px; }
 .checkout input,.checkout textarea { border:1px solid var(--border); border-radius:9px; min-height:44px; padding:10px 12px; }
 .checkout textarea { min-height:75px; resize:vertical; }
@@ -273,7 +273,6 @@ h1,h2,h3,p { text-wrap: pretty; }
 .admin-order h3 { color:var(--burgundy); font-size:16px; font-weight:800; margin:7px 0 3px; }
 .admin-order p,.admin-order li { color:var(--muted); font-size:11px; }
 .admin-order ul { margin:0; padding-left:18px; }
-.admin-order > strong { color:var(--burgundy); font-variant-numeric:tabular-nums; white-space:nowrap; }
 .admin-order > div:last-child { display:flex; gap:7px; }
 .order-chip { border-radius:999px; display:inline-block; font-size:9px; font-weight:800; padding:6px 9px; text-transform:uppercase; }
 .order-chip.pendiente { background:var(--lilac); color:var(--purple); }

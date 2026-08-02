@@ -18,6 +18,16 @@ function dinero(valor) {
     return new Intl.NumberFormat('es', { maximumFractionDigits: 0 }).format(valor || 0);
 }
 
+// "sábado 15 de agosto" en vez de "2026-08-15" — el día del evento es la
+// decisión central de todo el flujo, no debería leerse como un ISO crudo.
+// Mediodía UTC: la misma ancla que ya usa diaAntes(), así el texto nunca
+// se corre un día por el huso horario.
+function fechaLarga(iso) {
+    if (!iso) return '';
+    return new Date(`${iso}T12:00:00Z`)
+        .toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' });
+}
+
 // El evento más cercano posible es mañana: si fuera hoy, la recogida
 // (la tarde anterior) ya habría pasado. Fecha local, no UTC: en Cuba
 // (UTC-4/-5) usar toISOString() haría que después de las 19:00 esto
@@ -351,7 +361,7 @@ function Tienda() {
                             </label>
                         </div>
                         {hayFecha && (
-                            <p className="available">● Revisado para el {fechaEvento}</p>
+                            <p className="available">● Revisado para el {fechaLarga(fechaEvento)}</p>
                         )}
                         <ul className="condiciones">
                             <li><b>Recoges</b> el día antes de tu evento, después de las 5:00 PM.</li>
@@ -506,7 +516,7 @@ function Tienda() {
                 </div>
                 <div className="drawer-content">
                     {hayFecha && (
-                        <p className="drawer-date">◫ Evento: {fechaEvento} · recoges el {inicioRango} después de las 5:00 PM</p>
+                        <p className="drawer-date">◫ Evento: {fechaLarga(fechaEvento)} · recoges el {fechaLarga(inicioRango)} después de las 5:00 PM</p>
                     )}
                     {!enCarrito.length ? (
                         <div className="empty">

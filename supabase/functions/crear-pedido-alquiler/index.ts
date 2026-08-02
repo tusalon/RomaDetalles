@@ -41,6 +41,16 @@ const esFecha = (v: unknown): v is string =>
 const dinero = (n: number) =>
   new Intl.NumberFormat("es", { maximumFractionDigits: 0 }).format(n);
 
+// "sábado 15 de agosto" en vez de "2026-08-15". Mediodía UTC como ancla
+// (misma técnica que usa diaAntes() en Tienda.js) para que el texto no
+// se corra un día sin importar en qué huso horario corra este servidor.
+const fechaLarga = (iso: string) =>
+  new Date(`${iso}T12:00:00Z`).toLocaleDateString("es", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+
 /**
  * Traduce las excepciones de alquiler_crear_pedido() a algo que la clienta
  * entienda. Las que no reconocemos se vuelven un mensaje genérico: nunca
@@ -51,13 +61,13 @@ function mensajeDeError(raw: string): { mensaje: string; status: number } {
     const nombre = raw.split("SIN_STOCK:")[1]?.split("\n")[0]?.trim();
     return {
       mensaje: nombre
-        ? `${nombre} ya no está disponible para esas fechas. Prueba con otras fechas o quítalo del pedido.`
-        : "Uno de los artículos ya no está disponible para esas fechas.",
+        ? `${nombre} ya no está disponible ese día. Prueba con otra fecha o quítalo del pedido.`
+        : "Uno de los artículos ya no está disponible ese día.",
       status: 409,
     };
   }
   if (raw.includes("PERIODO_INVALIDO")) {
-    return { mensaje: "El período de alquiler no es válido.", status: 400 };
+    return { mensaje: "Ese día no es válido.", status: 400 };
   }
   if (raw.includes("PEDIDO_VACIO")) {
     return { mensaje: "Tu pedido está vacío.", status: 400 };
@@ -251,7 +261,7 @@ Deno.serve(async (req) => {
   // ---- Mensaje de WhatsApp -----------------------------------------
   const mensaje = armarMensajeSolicitud(negocio.plantilla_solicitud || "", {
     pedidoId: pedido.id,
-    fechaEvento: pedido.fecha_evento,
+    fechaEvento: fechaLarga(pedido.fecha_evento),
     items: lineas,
     total: Number(pedido.total),
     anticipo: Number(pedido.anticipo || 0),

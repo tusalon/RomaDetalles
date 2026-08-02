@@ -3,6 +3,12 @@
 -- fix del bug de Ocupación
 -- =====================================================================
 -- Idempotente.
+--
+-- OJO: alquiler_crear_pedido_manual() se reemplaza otra vez en sql/06
+-- con una firma distinta (p_evento en vez de p_inicio/p_fin). No correr
+-- este archivo solo para "arreglar" algo puntual sin correr también el
+-- 06 después — resucitaría la versión vieja, que ni siquiera guarda
+-- fecha_evento (violaría el NOT NULL en el insert).
 -- =====================================================================
 
 -- ---------------------------------------------------------------------
