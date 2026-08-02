@@ -59,7 +59,7 @@ const PLANTILLA_CONFIRMACION_POR_DEFECTO =
 // Rellena la plantilla de confirmación con los datos reales del pedido.
 // Variables soportadas: {nombre} {pedido_id} {fechas} {total}
 function armarMensajeConfirmacion(plantilla, pedido, moneda) {
-    const fechas = `${pedido.fecha_inicio} al ${pedido.fecha_fin} (${pedido.dias} ${pedido.dias === 1 ? 'día' : 'días'})`;
+    const fechas = pedido.fecha_evento || pedido.fecha_inicio;
     const total = `${dineroPanel(pedido.total)} ${moneda}`;
     const base = plantilla && plantilla.trim() ? plantilla : PLANTILLA_CONFIRMACION_POR_DEFECTO;
     return base
@@ -218,7 +218,7 @@ function Panel({ negocioInicial, email }) {
         try {
             const filas = await window.supaGet(
                 `alquiler_pedidos?negocio_id=eq.${negocio.id}` +
-                `&select=id,cliente_nombre,cliente_telefono,fecha_inicio,fecha_fin,dias,total,estado,notas,creado_en,` +
+                `&select=id,cliente_nombre,cliente_telefono,fecha_evento,fecha_inicio,fecha_fin,dias,total,anticipo,estado,notas,creado_en,` +
                 `alquiler_pedido_items(id,producto_nombre,cantidad)` +
                 `&order=creado_en.desc&limit=200`
             );
@@ -285,7 +285,10 @@ function Panel({ negocioInicial, email }) {
                         plantilla_confirmacion: negocio.plantilla_confirmacion || '',
                         plantilla_compartir: negocio.plantilla_compartir || '',
                         plantilla_solicitud: negocio.plantilla_solicitud || '',
-                        dias_minimos: Math.max(1, Number(negocio.dias_minimos) || 1),
+                        anticipo_porciento: Math.min(100, Math.max(0, Math.floor(Number(negocio.anticipo_porciento) || 0))),
+                        anticipo_redondear: negocio.anticipo_redondear !== false,
+                        pago_tarjeta: negocio.pago_tarjeta || '',
+                        pago_telefono: negocio.pago_telefono || '',
                         actualizado_en: new Date().toISOString()
                     })
                 }
@@ -553,7 +556,7 @@ function Panel({ negocioInicial, email }) {
 
     // ---- Reserva manual (clienta sin internet) -------------------------
     function abrirReservaManual() {
-        setReservaManual({ cliente_nombre: '', cliente_telefono: '', notas: '', fecha_inicio: '', fecha_fin: '', items: {} });
+        setReservaManual({ cliente_nombre: '', cliente_telefono: '', notas: '', fecha_evento: '', items: {} });
     }
 
     function cancelarReservaManual() {
@@ -575,8 +578,8 @@ function Panel({ negocioInicial, email }) {
             notificar('Ponle un nombre a la clienta.');
             return;
         }
-        if (!reservaManual.fecha_inicio || !reservaManual.fecha_fin) {
-            notificar('Elige las fechas del alquiler.');
+        if (!reservaManual.fecha_evento) {
+            notificar('Elige el día del evento.');
             return;
         }
         const items = Object.entries(reservaManual.items).map(([producto_id, cantidad]) => ({ producto_id, cantidad }));
@@ -592,8 +595,7 @@ function Panel({ negocioInicial, email }) {
                 p_nombre: reservaManual.cliente_nombre.trim(),
                 p_telefono: reservaManual.cliente_telefono.trim(),
                 p_notas: reservaManual.notas.trim(),
-                p_inicio: reservaManual.fecha_inicio,
-                p_fin: reservaManual.fecha_fin,
+                p_evento: reservaManual.fecha_evento,
                 p_items: items
             });
             setReservaManual(null);
@@ -677,13 +679,9 @@ function Panel({ negocioInicial, email }) {
                                         </label>
                                     </div>
                                     <div className="producto-form-fila">
-                                        <label>Desde
-                                            <input type="date" required value={reservaManual.fecha_inicio}
-                                                onChange={(e) => setReservaManual({ ...reservaManual, fecha_inicio: e.target.value, fecha_fin: reservaManual.fecha_fin && reservaManual.fecha_fin < e.target.value ? e.target.value : reservaManual.fecha_fin })} />
-                                        </label>
-                                        <label>Hasta
-                                            <input type="date" required min={reservaManual.fecha_inicio} value={reservaManual.fecha_fin}
-                                                onChange={(e) => setReservaManual({ ...reservaManual, fecha_fin: e.target.value })} />
+                                        <label>Día del evento
+                                            <input type="date" required value={reservaManual.fecha_evento}
+                                                onChange={(e) => setReservaManual({ ...reservaManual, fecha_evento: e.target.value })} />
                                         </label>
                                     </div>
                                     <label className="wide">Artículos
@@ -732,7 +730,8 @@ function Panel({ negocioInicial, email }) {
                                                 {ETIQUETA_ESTADO[pedido.estado] || pedido.estado}
                                             </span>
                                             <h3>{pedido.cliente_nombre}</h3>
-                                            <p>{pedido.id} · {pedido.fecha_inicio} al {pedido.fecha_fin} · {pedido.dias} {pedido.dias === 1 ? 'día' : 'días'}</p>
+                                            <p>{pedido.id} · Evento: {pedido.fecha_evento || pedido.fecha_inicio}</p>
+                                            <p>Recoge el {pedido.fecha_inicio} después de las 5:00 PM</p>
                                             {pedido.cliente_telefono && (
                                                 <p>📞 <a href={`tel:${pedido.cliente_telefono}`}>{pedido.cliente_telefono}</a></p>
                                             )}
@@ -743,7 +742,12 @@ function Panel({ negocioInicial, email }) {
                                                 <li key={item.id}>{item.cantidad} × {item.producto_nombre}</li>
                                             ))}
                                         </ul>
-                                        <strong>{dineroPanel(pedido.total)} {moneda}</strong>
+                                        <div className="order-importes">
+                                            <strong>{dineroPanel(pedido.total)} {moneda}</strong>
+                                            {Number(pedido.anticipo) > 0 && (
+                                                <small>Anticipo: {dineroPanel(pedido.anticipo)} {moneda}</small>
+                                            )}
+                                        </div>
                                         <div>
                                             {pedido.estado === 'pendiente' && (
                                                 <button onClick={() => cambiarEstado(pedido, 'confirmado')}>Confirmar</button>
@@ -793,7 +797,7 @@ function Panel({ negocioInicial, email }) {
                                             <input value={productoNuevo.categoria}
                                                 onChange={(e) => setProductoNuevo({ ...productoNuevo, categoria: e.target.value })} />
                                         </label>
-                                        <label>Precio por día
+                                        <label>Precio por evento
                                             <input type="number" min="0" inputMode="numeric" value={productoNuevo.precio_dia}
                                                 onChange={(e) => setProductoNuevo({ ...productoNuevo, precio_dia: e.target.value })} />
                                         </label>
@@ -839,7 +843,7 @@ function Panel({ negocioInicial, email }) {
                                                         onChange={(e) => setProductos((p) => p.map((x) =>
                                                             x.id === producto.id ? { ...x, categoria: e.target.value } : x))} />
                                                 </label>
-                                                <label>Precio por día
+                                                <label>Precio por evento
                                                     <input type="number" min="0" inputMode="numeric" value={producto.precio_dia}
                                                         onChange={(e) => setProductos((p) => p.map((x) =>
                                                             x.id === producto.id ? { ...x, precio_dia: e.target.value } : x))} />
@@ -1023,9 +1027,27 @@ function Panel({ negocioInicial, email }) {
                                     <textarea value={negocio.texto_bienvenida}
                                         onChange={(e) => setNegocio({ ...negocio, texto_bienvenida: e.target.value })} />
                                 </label>
-                                <label>Mínimo de días por alquiler
-                                    <input type="number" min="1" inputMode="numeric" value={negocio.dias_minimos}
-                                        onChange={(e) => setNegocio({ ...negocio, dias_minimos: e.target.value })} />
+                                <label>Anticipo (%)
+                                    <input type="number" min="0" max="100" inputMode="numeric"
+                                        value={negocio.anticipo_porciento ?? 0}
+                                        onChange={(e) => setNegocio({ ...negocio, anticipo_porciento: e.target.value })} />
+                                    <small>0 = sin anticipo. La clienta ve cuánto paga ahora y cuánto al recoger.</small>
+                                </label>
+                                <label className="check-linea">
+                                    <input type="checkbox"
+                                        checked={negocio.anticipo_redondear !== false}
+                                        onChange={(e) => setNegocio({ ...negocio, anticipo_redondear: e.target.checked })} />
+                                    {' '}Redondear el anticipo a la centena
+                                </label>
+                                <label>Tarjeta para el anticipo
+                                    <input placeholder="Ej. 9227 0699 1234 5678" inputMode="numeric"
+                                        value={negocio.pago_tarjeta || ''}
+                                        onChange={(e) => setNegocio({ ...negocio, pago_tarjeta: e.target.value })} />
+                                </label>
+                                <label>Teléfono asociado a la tarjeta
+                                    <input placeholder="Ej. 53842336" inputMode="tel"
+                                        value={negocio.pago_telefono || ''}
+                                        onChange={(e) => setNegocio({ ...negocio, pago_telefono: e.target.value })} />
                                 </label>
                                 <label>Instagram
                                     <input placeholder="https://instagram.com/..." value={negocio.instagram_url}
@@ -1048,7 +1070,7 @@ function Panel({ negocioInicial, email }) {
                                 <label className="wide">Mensaje de solicitud (de la clienta a ti)
                                     <textarea value={negocio.plantilla_solicitud || ''}
                                         onChange={(e) => setNegocio({ ...negocio, plantilla_solicitud: e.target.value })} />
-                                    <small>Variables disponibles: {'{nombre}'}, {'{fechas}'}, {'{items}'}, {'{total}'}, {'{telefono}'}, {'{notas}'}, {'{pedido_id}'}. Es el mensaje que le llega a WhatsApp cuando una clienta pide un alquiler desde tu tienda. {'{telefono}'} y {'{notas}'} ya vienen con su propio emoji (📞 y 📝) y desaparecen del todo si el dato no llegó — ponlas en su propia línea.</small>
+                                    <small>Variables disponibles: {'{nombre}'}, {'{fechas}'} (el día del evento), {'{items}'}, {'{total}'}, {'{anticipo}'}, {'{tarjeta}'}, {'{telefono_pago}'}, {'{telefono}'}, {'{notas}'}, {'{pedido_id}'}. {'{telefono}'}, {'{notas}'} y {'{anticipo}'} ya vienen con su propio emoji y desaparecen del todo si el dato no aplica — ponlas en su propia línea. Es el mensaje que le llega a WhatsApp cuando una clienta pide un alquiler desde tu tienda.</small>
                                 </label>
                                 <label className="wide">Enlace de tu tienda
                                     <input readOnly value={enlaceTiendaCompleto}

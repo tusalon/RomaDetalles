@@ -20,7 +20,7 @@ function hoyPanel() {
 const PRODUCTO_VACIO = { nombre: "", descripcion: "", categoria: "Decoración", precio_dia: "", cantidad: 1 };
 const PLANTILLA_CONFIRMACION_POR_DEFECTO = "Hola {nombre}, tu pedido {pedido_id} quedó confirmado ✅\n📅 {fechas}\n💰 Total: {total}\nCualquier duda me avisas. ¡Gracias por tu preferencia!";
 function armarMensajeConfirmacion(plantilla, pedido, moneda) {
-  const fechas = `${pedido.fecha_inicio} al ${pedido.fecha_fin} (${pedido.dias} ${pedido.dias === 1 ? "día" : "días"})`;
+  const fechas = pedido.fecha_evento || pedido.fecha_inicio;
   const total = `${dineroPanel(pedido.total)} ${moneda}`;
   const base = plantilla && plantilla.trim() ? plantilla : PLANTILLA_CONFIRMACION_POR_DEFECTO;
   return base.replaceAll("{nombre}", pedido.cliente_nombre || "").replaceAll("{pedido_id}", pedido.id || "").replaceAll("{fechas}", fechas).replaceAll("{total}", total);
@@ -110,7 +110,7 @@ function Panel({ negocioInicial, email }) {
   const cargarPedidos = useCallback(async () => {
     try {
       const filas = await window.supaGet(
-        `alquiler_pedidos?negocio_id=eq.${negocio.id}&select=id,cliente_nombre,cliente_telefono,fecha_inicio,fecha_fin,dias,total,estado,notas,creado_en,alquiler_pedido_items(id,producto_nombre,cantidad)&order=creado_en.desc&limit=200`
+        `alquiler_pedidos?negocio_id=eq.${negocio.id}&select=id,cliente_nombre,cliente_telefono,fecha_evento,fecha_inicio,fecha_fin,dias,total,anticipo,estado,notas,creado_en,alquiler_pedido_items(id,producto_nombre,cantidad)&order=creado_en.desc&limit=200`
       );
       setPedidos(filas);
     } catch (e) {
@@ -174,7 +174,10 @@ function Panel({ negocioInicial, email }) {
             plantilla_confirmacion: negocio.plantilla_confirmacion || "",
             plantilla_compartir: negocio.plantilla_compartir || "",
             plantilla_solicitud: negocio.plantilla_solicitud || "",
-            dias_minimos: Math.max(1, Number(negocio.dias_minimos) || 1),
+            anticipo_porciento: Math.min(100, Math.max(0, Math.floor(Number(negocio.anticipo_porciento) || 0))),
+            anticipo_redondear: negocio.anticipo_redondear !== false,
+            pago_tarjeta: negocio.pago_tarjeta || "",
+            pago_telefono: negocio.pago_telefono || "",
             actualizado_en: (/* @__PURE__ */ new Date()).toISOString()
           })
         }
@@ -397,7 +400,7 @@ function Panel({ negocioInicial, email }) {
     window.open(`https://wa.me/?text=${encodeURIComponent(mensaje)}`, "_blank");
   }
   function abrirReservaManual() {
-    setReservaManual({ cliente_nombre: "", cliente_telefono: "", notas: "", fecha_inicio: "", fecha_fin: "", items: {} });
+    setReservaManual({ cliente_nombre: "", cliente_telefono: "", notas: "", fecha_evento: "", items: {} });
   }
   function cancelarReservaManual() {
     setReservaManual(null);
@@ -416,8 +419,8 @@ function Panel({ negocioInicial, email }) {
       notificar("Ponle un nombre a la clienta.");
       return;
     }
-    if (!reservaManual.fecha_inicio || !reservaManual.fecha_fin) {
-      notificar("Elige las fechas del alquiler.");
+    if (!reservaManual.fecha_evento) {
+      notificar("Elige el día del evento.");
       return;
     }
     const items = Object.entries(reservaManual.items).map(([producto_id, cantidad]) => ({ producto_id, cantidad }));
@@ -432,8 +435,7 @@ function Panel({ negocioInicial, email }) {
         p_nombre: reservaManual.cliente_nombre.trim(),
         p_telefono: reservaManual.cliente_telefono.trim(),
         p_notas: reservaManual.notas.trim(),
-        p_inicio: reservaManual.fecha_inicio,
-        p_fin: reservaManual.fecha_fin,
+        p_evento: reservaManual.fecha_evento,
         p_items: items
       });
       setReservaManual(null);
@@ -498,22 +500,13 @@ function Panel({ negocioInicial, email }) {
       value: reservaManual.cliente_telefono,
       onChange: (e) => setReservaManual({ ...reservaManual, cliente_telefono: e.target.value })
     }
-  ))), /* @__PURE__ */ React.createElement("div", { className: "producto-form-fila" }, /* @__PURE__ */ React.createElement("label", null, "Desde", /* @__PURE__ */ React.createElement(
+  ))), /* @__PURE__ */ React.createElement("div", { className: "producto-form-fila" }, /* @__PURE__ */ React.createElement("label", null, "Día del evento", /* @__PURE__ */ React.createElement(
     "input",
     {
       type: "date",
       required: true,
-      value: reservaManual.fecha_inicio,
-      onChange: (e) => setReservaManual({ ...reservaManual, fecha_inicio: e.target.value, fecha_fin: reservaManual.fecha_fin && reservaManual.fecha_fin < e.target.value ? e.target.value : reservaManual.fecha_fin })
-    }
-  )), /* @__PURE__ */ React.createElement("label", null, "Hasta", /* @__PURE__ */ React.createElement(
-    "input",
-    {
-      type: "date",
-      required: true,
-      min: reservaManual.fecha_inicio,
-      value: reservaManual.fecha_fin,
-      onChange: (e) => setReservaManual({ ...reservaManual, fecha_fin: e.target.value })
+      value: reservaManual.fecha_evento,
+      onChange: (e) => setReservaManual({ ...reservaManual, fecha_evento: e.target.value })
     }
   ))), /* @__PURE__ */ React.createElement("label", { className: "wide" }, "Artículos", /* @__PURE__ */ React.createElement("div", { className: "reserva-manual-items" }, !productos.filter((p) => p.activo).length && /* @__PURE__ */ React.createElement("p", { className: "producto-form-nota" }, "No hay artículos activos en el catálogo."), productos.filter((p) => p.activo).map((producto) => /* @__PURE__ */ React.createElement("div", { className: "reserva-manual-item", key: producto.id }, /* @__PURE__ */ React.createElement("span", null, producto.nombre), /* @__PURE__ */ React.createElement(
     "input",
@@ -531,7 +524,7 @@ function Panel({ negocioInicial, email }) {
       value: reservaManual.notas,
       onChange: (e) => setReservaManual({ ...reservaManual, notas: e.target.value })
     }
-  )), /* @__PURE__ */ React.createElement("div", { className: "producto-form-acciones" }, /* @__PURE__ */ React.createElement("button", { type: "submit", disabled: creandoReserva }, creandoReserva ? "Creando…" : "Crear reserva confirmada"), /* @__PURE__ */ React.createElement("button", { type: "button", className: "apagar", onClick: cancelarReservaManual }, "Cancelar"))), /* @__PURE__ */ React.createElement(TarjetaAvisos, { negocioId: negocio.id }), /* @__PURE__ */ React.createElement("div", { className: "admin-orders" }, !pedidos.length && /* @__PURE__ */ React.createElement("div", { className: "admin-card empty-orders" }, "Todavía no hay solicitudes."), pedidos.map((pedido) => /* @__PURE__ */ React.createElement("article", { className: "admin-order admin-card", key: pedido.id }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("span", { className: `order-chip ${pedido.estado}` }, ETIQUETA_ESTADO[pedido.estado] || pedido.estado), /* @__PURE__ */ React.createElement("h3", null, pedido.cliente_nombre), /* @__PURE__ */ React.createElement("p", null, pedido.id, " · ", pedido.fecha_inicio, " al ", pedido.fecha_fin, " · ", pedido.dias, " ", pedido.dias === 1 ? "día" : "días"), pedido.cliente_telefono && /* @__PURE__ */ React.createElement("p", null, "📞 ", /* @__PURE__ */ React.createElement("a", { href: `tel:${pedido.cliente_telefono}` }, pedido.cliente_telefono)), pedido.notas && /* @__PURE__ */ React.createElement("p", null, "📝 ", pedido.notas)), /* @__PURE__ */ React.createElement("ul", null, (pedido.alquiler_pedido_items || []).map((item) => /* @__PURE__ */ React.createElement("li", { key: item.id }, item.cantidad, " × ", item.producto_nombre))), /* @__PURE__ */ React.createElement("strong", null, dineroPanel(pedido.total), " ", moneda), /* @__PURE__ */ React.createElement("div", null, pedido.estado === "pendiente" && /* @__PURE__ */ React.createElement("button", { onClick: () => cambiarEstado(pedido, "confirmado") }, "Confirmar"), pedido.estado === "confirmado" && /* @__PURE__ */ React.createElement("button", { onClick: () => cambiarEstado(pedido, "entregado") }, "Entregada"), pedido.estado === "entregado" && /* @__PURE__ */ React.createElement("button", { onClick: () => cambiarEstado(pedido, "devuelto") }, "Devuelta"), pedido.estado !== "cancelado" && pedido.estado !== "devuelto" && /* @__PURE__ */ React.createElement("button", { className: "danger", onClick: () => cambiarEstado(pedido, "cancelado") }, "Cancelar")))))), pestana === "productos" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "admin-title" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "Tu inventario"), /* @__PURE__ */ React.createElement("h1", null, "Artículos")), !productoNuevo && /* @__PURE__ */ React.createElement("button", { onClick: abrirFormularioProducto }, "+ Nuevo artículo")), productoNuevo && /* @__PURE__ */ React.createElement("form", { className: "admin-card producto-form", onSubmit: crearProducto }, /* @__PURE__ */ React.createElement("h3", null, "Nuevo artículo"), /* @__PURE__ */ React.createElement("label", null, "Nombre", /* @__PURE__ */ React.createElement(
+  )), /* @__PURE__ */ React.createElement("div", { className: "producto-form-acciones" }, /* @__PURE__ */ React.createElement("button", { type: "submit", disabled: creandoReserva }, creandoReserva ? "Creando…" : "Crear reserva confirmada"), /* @__PURE__ */ React.createElement("button", { type: "button", className: "apagar", onClick: cancelarReservaManual }, "Cancelar"))), /* @__PURE__ */ React.createElement(TarjetaAvisos, { negocioId: negocio.id }), /* @__PURE__ */ React.createElement("div", { className: "admin-orders" }, !pedidos.length && /* @__PURE__ */ React.createElement("div", { className: "admin-card empty-orders" }, "Todavía no hay solicitudes."), pedidos.map((pedido) => /* @__PURE__ */ React.createElement("article", { className: "admin-order admin-card", key: pedido.id }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("span", { className: `order-chip ${pedido.estado}` }, ETIQUETA_ESTADO[pedido.estado] || pedido.estado), /* @__PURE__ */ React.createElement("h3", null, pedido.cliente_nombre), /* @__PURE__ */ React.createElement("p", null, pedido.id, " · Evento: ", pedido.fecha_evento || pedido.fecha_inicio), /* @__PURE__ */ React.createElement("p", null, "Recoge el ", pedido.fecha_inicio, " después de las 5:00 PM"), pedido.cliente_telefono && /* @__PURE__ */ React.createElement("p", null, "📞 ", /* @__PURE__ */ React.createElement("a", { href: `tel:${pedido.cliente_telefono}` }, pedido.cliente_telefono)), pedido.notas && /* @__PURE__ */ React.createElement("p", null, "📝 ", pedido.notas)), /* @__PURE__ */ React.createElement("ul", null, (pedido.alquiler_pedido_items || []).map((item) => /* @__PURE__ */ React.createElement("li", { key: item.id }, item.cantidad, " × ", item.producto_nombre))), /* @__PURE__ */ React.createElement("div", { className: "order-importes" }, /* @__PURE__ */ React.createElement("strong", null, dineroPanel(pedido.total), " ", moneda), Number(pedido.anticipo) > 0 && /* @__PURE__ */ React.createElement("small", null, "Anticipo: ", dineroPanel(pedido.anticipo), " ", moneda)), /* @__PURE__ */ React.createElement("div", null, pedido.estado === "pendiente" && /* @__PURE__ */ React.createElement("button", { onClick: () => cambiarEstado(pedido, "confirmado") }, "Confirmar"), pedido.estado === "confirmado" && /* @__PURE__ */ React.createElement("button", { onClick: () => cambiarEstado(pedido, "entregado") }, "Entregada"), pedido.estado === "entregado" && /* @__PURE__ */ React.createElement("button", { onClick: () => cambiarEstado(pedido, "devuelto") }, "Devuelta"), pedido.estado !== "cancelado" && pedido.estado !== "devuelto" && /* @__PURE__ */ React.createElement("button", { className: "danger", onClick: () => cambiarEstado(pedido, "cancelado") }, "Cancelar")))))), pestana === "productos" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "admin-title" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "Tu inventario"), /* @__PURE__ */ React.createElement("h1", null, "Artículos")), !productoNuevo && /* @__PURE__ */ React.createElement("button", { onClick: abrirFormularioProducto }, "+ Nuevo artículo")), productoNuevo && /* @__PURE__ */ React.createElement("form", { className: "admin-card producto-form", onSubmit: crearProducto }, /* @__PURE__ */ React.createElement("h3", null, "Nuevo artículo"), /* @__PURE__ */ React.createElement("label", null, "Nombre", /* @__PURE__ */ React.createElement(
     "input",
     {
       autoFocus: true,
@@ -551,7 +544,7 @@ function Panel({ negocioInicial, email }) {
       value: productoNuevo.categoria,
       onChange: (e) => setProductoNuevo({ ...productoNuevo, categoria: e.target.value })
     }
-  )), /* @__PURE__ */ React.createElement("label", null, "Precio por día", /* @__PURE__ */ React.createElement(
+  )), /* @__PURE__ */ React.createElement("label", null, "Precio por evento", /* @__PURE__ */ React.createElement(
     "input",
     {
       type: "number",
@@ -598,7 +591,7 @@ function Panel({ negocioInicial, email }) {
           value: producto.categoria,
           onChange: (e) => setProductos((p) => p.map((x) => x.id === producto.id ? { ...x, categoria: e.target.value } : x))
         }
-      )), /* @__PURE__ */ React.createElement("label", null, "Precio por día", /* @__PURE__ */ React.createElement(
+      )), /* @__PURE__ */ React.createElement("label", null, "Precio por evento", /* @__PURE__ */ React.createElement(
         "input",
         {
           type: "number",
@@ -705,14 +698,38 @@ function Panel({ negocioInicial, email }) {
       value: negocio.texto_bienvenida,
       onChange: (e) => setNegocio({ ...negocio, texto_bienvenida: e.target.value })
     }
-  )), /* @__PURE__ */ React.createElement("label", null, "Mínimo de días por alquiler", /* @__PURE__ */ React.createElement(
+  )), /* @__PURE__ */ React.createElement("label", null, "Anticipo (%)", /* @__PURE__ */ React.createElement(
     "input",
     {
       type: "number",
-      min: "1",
+      min: "0",
+      max: "100",
       inputMode: "numeric",
-      value: negocio.dias_minimos,
-      onChange: (e) => setNegocio({ ...negocio, dias_minimos: e.target.value })
+      value: negocio.anticipo_porciento ?? 0,
+      onChange: (e) => setNegocio({ ...negocio, anticipo_porciento: e.target.value })
+    }
+  ), /* @__PURE__ */ React.createElement("small", null, "0 = sin anticipo. La clienta ve cuánto paga ahora y cuánto al recoger.")), /* @__PURE__ */ React.createElement("label", { className: "check-linea" }, /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      type: "checkbox",
+      checked: negocio.anticipo_redondear !== false,
+      onChange: (e) => setNegocio({ ...negocio, anticipo_redondear: e.target.checked })
+    }
+  ), " ", "Redondear el anticipo a la centena"), /* @__PURE__ */ React.createElement("label", null, "Tarjeta para el anticipo", /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      placeholder: "Ej. 9227 0699 1234 5678",
+      inputMode: "numeric",
+      value: negocio.pago_tarjeta || "",
+      onChange: (e) => setNegocio({ ...negocio, pago_tarjeta: e.target.value })
+    }
+  )), /* @__PURE__ */ React.createElement("label", null, "Teléfono asociado a la tarjeta", /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      placeholder: "Ej. 53842336",
+      inputMode: "tel",
+      value: negocio.pago_telefono || "",
+      onChange: (e) => setNegocio({ ...negocio, pago_telefono: e.target.value })
     }
   )), /* @__PURE__ */ React.createElement("label", null, "Instagram", /* @__PURE__ */ React.createElement(
     "input",
@@ -746,7 +763,7 @@ function Panel({ negocioInicial, email }) {
       value: negocio.plantilla_solicitud || "",
       onChange: (e) => setNegocio({ ...negocio, plantilla_solicitud: e.target.value })
     }
-  ), /* @__PURE__ */ React.createElement("small", null, "Variables disponibles: ", "{nombre}", ", ", "{fechas}", ", ", "{items}", ", ", "{total}", ", ", "{telefono}", ", ", "{notas}", ", ", "{pedido_id}", ". Es el mensaje que le llega a WhatsApp cuando una clienta pide un alquiler desde tu tienda. ", "{telefono}", " y ", "{notas}", " ya vienen con su propio emoji (📞 y 📝) y desaparecen del todo si el dato no llegó — ponlas en su propia línea.")), /* @__PURE__ */ React.createElement("label", { className: "wide" }, "Enlace de tu tienda", /* @__PURE__ */ React.createElement(
+  ), /* @__PURE__ */ React.createElement("small", null, "Variables disponibles: ", "{nombre}", ", ", "{fechas}", " (el día del evento), ", "{items}", ", ", "{total}", ", ", "{anticipo}", ", ", "{tarjeta}", ", ", "{telefono_pago}", ", ", "{telefono}", ", ", "{notas}", ", ", "{pedido_id}", ". ", "{telefono}", ", ", "{notas}", " y ", "{anticipo}", " ya vienen con su propio emoji y desaparecen del todo si el dato no aplica — ponlas en su propia línea. Es el mensaje que le llega a WhatsApp cuando una clienta pide un alquiler desde tu tienda.")), /* @__PURE__ */ React.createElement("label", { className: "wide" }, "Enlace de tu tienda", /* @__PURE__ */ React.createElement(
     "input",
     {
       readOnly: true,

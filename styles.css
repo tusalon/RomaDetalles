@@ -336,6 +336,13 @@ h1,h2,h3,p { text-wrap: pretty; }
 .producto-form-acciones button { background:var(--burgundy); border:0; border-radius:9px; color:white; cursor:pointer; font-size:12px; font-weight:800; min-height:44px; padding:0 18px; }
 .producto-form-acciones button.apagar { background:transparent; border:1px solid var(--border); color:var(--muted); }
 .producto-disponible-ahora { color:var(--libre); font-size:11px; font-weight:700; margin:0; }
+/* Checkbox en línea dentro del formulario de Configuración. */
+.check-linea { align-items:center; display:flex; gap:6px; padding-top:22px; }
+.check-linea input { margin:0; min-height:auto; width:auto; }
+/* Importe de la reserva con su anticipo debajo. */
+.order-importes { text-align:right; white-space:nowrap; }
+.order-importes strong { color:var(--burgundy); font-variant-numeric:tabular-nums; }
+.order-importes small { color:var(--muted); display:block; font-size:10px; margin-top:3px; }
 
 /* --- Reserva manual (admin) ------------------------------------------ */
 .reserva-manual-items { border:1px solid var(--border); border-radius:8px; margin-top:6px; max-height:260px; overflow-y:auto; }

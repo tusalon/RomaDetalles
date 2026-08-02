@@ -149,7 +149,8 @@
         const negocios = await window.supaGet(
             `alquiler_negocios?id=eq.${vinculos[0].negocio_id}` +
             `&select=id,slug,nombre,titulo_bienvenida,texto_bienvenida,whatsapp,moneda,instagram_url,facebook_url,dias_minimos,activo,` +
-            `logo_url,plantilla_confirmacion,plantilla_compartir,plantilla_solicitud`
+            `logo_url,plantilla_confirmacion,plantilla_compartir,plantilla_solicitud,` +
+            `anticipo_porciento,anticipo_redondear,pago_tarjeta,pago_telefono`
         );
         return negocios[0] || null;
     }
