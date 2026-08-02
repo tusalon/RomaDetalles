@@ -109,6 +109,13 @@ h1,h2,h3,p { text-wrap: pretty; }
 .dates input { background:white; border:1px solid var(--border); border-radius:9px; color:var(--ink); display:block; margin-top:5px; min-height:44px; padding:8px; width:100%; }
 .available { color:var(--libre); font-size:11px; font-weight:800; margin:12px 0 0; }
 
+/* Una sola fecha: el rango desapareció, el evento es un día. */
+.dates-una { grid-template-columns:1fr; }
+.condiciones { border-top:1px solid var(--border); color:var(--muted); font-size:11px; line-height:1.7; list-style:none; margin:14px 0 0; padding:14px 0 0; }
+.condiciones li { padding-left:14px; position:relative; }
+.condiciones li::before { color:var(--coral); content:'•'; left:0; position:absolute; }
+.condiciones b { color:var(--ink); }
+
 .hero-buttons { display:flex; flex-wrap:wrap; gap:14px; margin-top:24px; }
 .primary,.secondary { align-items:center; border-radius:13px; display:inline-flex; font-size:14px; font-weight:800; justify-content:center; min-height:54px; padding:12px 24px; }
 .primary { background:linear-gradient(100deg,var(--burgundy),#8b2447); color:white; }
@@ -198,6 +205,17 @@ h1,h2,h3,p { text-wrap: pretty; }
 .total { align-items:end; background:var(--cream); border-radius:12px; display:flex; justify-content:space-between; margin-top:20px; padding:16px; }
 .total span { font-size:12px; }
 .total strong { color:var(--burgundy); font-variant-numeric:tabular-nums; }
+
+/* Desglose del anticipo: lo que paga ahora vs. lo que paga al recoger. */
+.anticipo-desglose { display:grid; gap:8px; margin-top:10px; }
+.anticipo-desglose p { align-items:center; display:flex; font-size:12px; justify-content:space-between; margin:0; }
+.anticipo-desglose span { color:var(--muted); }
+.anticipo-desglose strong { color:var(--burgundy); font-variant-numeric:tabular-nums; }
+.datos-pago { background:var(--lilac); border-radius:12px; margin-top:14px; padding:14px 16px; }
+.datos-pago strong { color:var(--purple); display:block; font-size:12px; }
+.datos-pago p { color:var(--ink); font-size:13px; margin:8px 0 0; }
+.datos-pago b { font-variant-numeric:tabular-nums; }
+.datos-pago small { color:var(--muted); display:block; font-size:10px; margin-top:10px; }
 .checkout { display:grid; gap:10px; margin-top:22px; }
 .checkout input,.checkout textarea { border:1px solid var(--border); border-radius:9px; min-height:44px; padding:10px 12px; }
 .checkout textarea { min-height:75px; resize:vertical; }

@@ -14,21 +14,39 @@
 
 const { useEffect, useMemo, useState, useCallback } = React;
 
-function diasEntre(inicio, fin) {
-    if (!inicio || !fin) return 0;
-    const ms = new Date(`${fin}T12:00:00Z`) - new Date(`${inicio}T12:00:00Z`);
-    return Math.max(0, Math.floor(ms / 86400000) + 1);
-}
-
 function dinero(valor) {
     return new Intl.NumberFormat('es', { maximumFractionDigits: 0 }).format(valor || 0);
 }
 
-function hoyISO() {
-    // Fecha local, no UTC: en Cuba (UTC-4/-5) usar toISOString() haría que
-    // después de las 19:00 el mínimo del calendario saltara al día siguiente.
+// El evento más cercano posible es mañana: si fuera hoy, la recogida
+// (la tarde anterior) ya habría pasado.
+function mananaISO() {
     const d = new Date();
+    d.setDate(d.getDate() + 1);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// Día de recogida: la tarde anterior al evento. El mediodía UTC evita
+// que un cambio de horario mueva la fecha un día.
+function diaAntes(iso) {
+    const d = new Date(`${iso}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() - 1);
+    return d.toISOString().slice(0, 10);
+}
+
+// Espejo en JS de alquiler_anticipo() en Postgres. La fuente de verdad
+// es la de Postgres (se guarda en el pedido); esta solo sirve para
+// mostrarle el número a la clienta antes de enviar. Las dos guardas
+// tienen que ser iguales en ambas: nunca 0 por redondeo, nunca mayor
+// que el total.
+function calcularAnticipo(total, porciento, redondear) {
+    const pct = Number(porciento) || 0;
+    if (pct <= 0 || total <= 0) return 0;
+    const bruto = total * pct / 100;
+    const exacto = Math.round(bruto * 100) / 100;
+    if (redondear === false) return Math.min(total, exacto);
+    const redondeado = Math.round(bruto / 100) * 100;
+    return Math.min(total, redondeado === 0 ? exacto : redondeado);
 }
 
 function slugDeLaUrl() {
@@ -44,8 +62,7 @@ function Tienda() {
     const [galeria, setGaleria] = useState([]);
     const [fotoAmpliada, setFotoAmpliada] = useState(null);
 
-    const [inicio, setInicio] = useState('');
-    const [fin, setFin] = useState('');
+    const [fechaEvento, setFechaEvento] = useState('');
     const [categoria, setCategoria] = useState('Todos');
     const [carrito, setCarrito] = useState({});
     const [cajonAbierto, setCajonAbierto] = useState(false);
@@ -58,7 +75,10 @@ function Tienda() {
     const [enviando, setEnviando] = useState(false);
     const [aviso, setAviso] = useState('');
 
-    const dias = diasEntre(inicio, fin);
+    const hayFecha = Boolean(fechaEvento);
+    // Ventana real de ocupación: recoge la tarde anterior, entrega la
+    // mañana siguiente. Es el rango que entiende alquiler_disponibilidad.
+    const inicioRango = hayFecha ? diaAntes(fechaEvento) : '';
 
     // ---- Carga inicial ------------------------------------------------
     useEffect(() => {
@@ -73,7 +93,8 @@ function Tienda() {
             try {
                 const negocios = await window.supaGet(
                     `alquiler_negocios?slug=eq.${encodeURIComponent(slug)}&activo=eq.true` +
-                    `&select=id,slug,nombre,titulo_bienvenida,texto_bienvenida,whatsapp,moneda,instagram_url,facebook_url,dias_minimos`
+                    `&select=id,slug,nombre,titulo_bienvenida,texto_bienvenida,whatsapp,moneda,instagram_url,facebook_url,` +
+                    `anticipo_porciento,anticipo_redondear,pago_tarjeta,pago_telefono`
                 );
                 if (!negocios.length) {
                     setErrorCarga('No encontramos esta tienda. Revisa el enlace.');
@@ -109,14 +130,14 @@ function Tienda() {
 
     // ---- Disponibilidad al cambiar fechas -----------------------------
     useEffect(() => {
-        if (!negocio || !inicio || !fin || fin < inicio) return;
+        if (!negocio || !fechaEvento) return;
         let vigente = true;
         setComprobando(true);
 
         window.supaRpc('alquiler_disponibilidad', {
             p_negocio: negocio.id,
-            p_inicio: inicio,
-            p_fin: fin
+            p_inicio: diaAntes(fechaEvento),
+            p_fin: fechaEvento
         })
             .then((filas) => {
                 if (!vigente) return;
@@ -139,7 +160,7 @@ function Tienda() {
             .finally(() => { if (vigente) setComprobando(false); });
 
         return () => { vigente = false; };
-    }, [negocio, inicio, fin]);
+    }, [negocio, fechaEvento]);
 
     const categorias = useMemo(
         () => ['Todos', ...new Set(productos.map((p) => p.categoria).filter(Boolean))],
@@ -152,17 +173,24 @@ function Tienda() {
 
     const enCarrito = productos.filter((p) => carrito[p.id] > 0);
     const totalArticulos = Object.values(carrito).reduce((s, n) => s + n, 0);
-    const totalDiario = productos.reduce(
+    // Un evento = un precio. El total ya no se multiplica por días.
+    const totalPedido = productos.reduce(
         (s, p) => s + Number(p.precio_dia) * (carrito[p.id] || 0), 0
     );
 
+    const anticipo = calcularAnticipo(
+        totalPedido,
+        negocio?.anticipo_porciento,
+        negocio?.anticipo_redondear
+    );
+
     const disponibleDe = useCallback((producto) => {
-        if (!dias) return producto.cantidad;
+        if (!hayFecha) return producto.cantidad;
         return disponibilidad[producto.id] ?? producto.cantidad;
-    }, [dias, disponibilidad]);
+    }, [hayFecha, disponibilidad]);
 
     function agregar(producto) {
-        if (!dias) {
+        if (!hayFecha) {
             document.getElementById('fechas')?.scrollIntoView({ behavior: 'smooth' });
             return;
         }
@@ -192,8 +220,8 @@ function Tienda() {
             setAviso('Escribe tu nombre para continuar.');
             return;
         }
-        if (dias < (negocio.dias_minimos || 1)) {
-            setAviso(`El alquiler mínimo es de ${negocio.dias_minimos} día(s).`);
+        if (!fechaEvento) {
+            setAviso('Elige el día de tu evento.');
             return;
         }
 
@@ -211,8 +239,7 @@ function Tienda() {
                         cliente_nombre: nombre.trim(),
                         cliente_telefono: telefono.trim(),
                         notas: notas.trim(),
-                        fecha_inicio: inicio,
-                        fecha_fin: fin,
+                        fecha_evento: fechaEvento,
                         items: enCarrito.map((p) => ({
                             producto_id: p.id,
                             cantidad: carrito[p.id]
@@ -228,7 +255,7 @@ function Tienda() {
                 // para que vea el estado real en vez de insistir a ciegas.
                 if (res.status === 409) {
                     const filas = await window.supaRpc('alquiler_disponibilidad', {
-                        p_negocio: negocio.id, p_inicio: inicio, p_fin: fin
+                        p_negocio: negocio.id, p_inicio: diaAntes(fechaEvento), p_fin: fechaEvento
                     });
                     const mapa = {};
                     filas.forEach((f) => { mapa[f.producto_id] = f.disponible; });
@@ -306,33 +333,29 @@ function Tienda() {
                         <div className="date-title">
                             <span>◫</span>
                             <div>
-                                <strong>Comprueba tu fecha</strong>
+                                <strong>¿Qué día es tu evento?</strong>
                                 <small>
                                     {comprobando ? 'Comprobando…'
-                                        : dias ? 'Disponibilidad actualizada'
-                                        : 'Elige las fechas'}
+                                        : hayFecha ? 'Disponibilidad actualizada'
+                                        : 'Elige la fecha para ver qué está libre'}
                                 </small>
                             </div>
                         </div>
-                        <div className="dates">
+                        <div className="dates dates-una">
                             <label>
-                                Desde
-                                <input type="date" value={inicio} min={hoyISO()}
-                                    onChange={(e) => {
-                                        setInicio(e.target.value);
-                                        if (fin && fin < e.target.value) setFin(e.target.value);
-                                    }} />
-                            </label>
-                            <label>
-                                Hasta
-                                <input type="date" value={fin} min={inicio || hoyISO()}
-                                    disabled={!inicio}
-                                    onChange={(e) => setFin(e.target.value)} />
+                                Día del evento
+                                <input type="date" value={fechaEvento} min={mananaISO()}
+                                    onChange={(e) => setFechaEvento(e.target.value)} />
                             </label>
                         </div>
-                        {dias > 0 && (
-                            <p className="available">● Revisado · {dias} {dias === 1 ? 'día' : 'días'}</p>
+                        {hayFecha && (
+                            <p className="available">● Revisado para el {fechaEvento}</p>
                         )}
+                        <ul className="condiciones">
+                            <li><b>Recoges</b> el día antes de tu evento, después de las 5:00 PM.</li>
+                            <li><b>Entregas</b> al día siguiente, antes de las 12:00 del mediodía.</li>
+                            <li>Si no entregas a tiempo, se cobra un <b>50% extra</b> del costo del alquiler.</li>
+                        </ul>
                     </div>
 
                     <div className="hero-buttons">
@@ -340,7 +363,7 @@ function Tienda() {
                         <a className="secondary" href="#como">¿Cómo funciona?</a>
                     </div>
                     <p className="benefits">
-                        Reserva por días <i>•</i> Combina productos <i>•</i> Pedido por WhatsApp
+                        Reserva por evento <i>•</i> Combina productos <i>•</i> Pedido por WhatsApp
                     </p>
                 </div>
                 <div className="hero-visual">
@@ -355,7 +378,7 @@ function Tienda() {
                             <p className="eyebrow">Tu evento, a tu manera</p>
                             <h2>Combina todo lo que te inspire</h2>
                         </div>
-                        <p>Agrega varios artículos y forma tu combo. El total se calcula según los días seleccionados.</p>
+                        <p>Agrega varios artículos y forma tu combo. El total es por el día de tu evento.</p>
                     </div>
 
                     {!productos.length ? (
@@ -380,17 +403,17 @@ function Tienda() {
                             <div className="product-grid">
                                 {filtrados.map((producto) => {
                                     const disp = disponibleDe(producto);
-                                    const agotado = dias > 0 && disp < 1;
+                                    const agotado = hayFecha && disp < 1;
                                     // El catálogo está "en reposo" hasta que se eligen
                                     // fechas: recién ahí tiene sentido decir libre/reservado.
-                                    const estado = dias === 0 ? '' : (agotado ? 'agotado' : 'libre');
+                                    const estado = !hayFecha ? '' : (agotado ? 'agotado' : 'libre');
                                     return (
                                         <article className={`product-card ${estado}`} key={producto.id}>
                                             <div className="product-image">
                                                 <img src={producto.foto_url || 'images/producto-arco.png'}
                                                     alt={producto.nombre} loading="lazy" />
                                                 {producto.categoria && <span>{producto.categoria}</span>}
-                                                {dias > 0 && (
+                                                {hayFecha && (
                                                     <b className={agotado ? 'reserved' : ''}>
                                                         {agotado ? '● Reservado'
                                                             : `● ${disp} disponible${disp === 1 ? '' : 's'}`}
@@ -402,14 +425,14 @@ function Tienda() {
                                                     <h3>{producto.nombre}</h3>
                                                     <p>
                                                         <strong>{dinero(producto.precio_dia)} {moneda}</strong>
-                                                        <small>/ día</small>
+                                                        <small>por evento</small>
                                                     </p>
                                                 </div>
                                                 <p>{producto.descripcion}</p>
                                                 <button disabled={agotado} onClick={() => agregar(producto)}>
-                                                    {dias
+                                                    {hayFecha
                                                         ? (agotado ? 'No disponible' : 'Agregar al pedido +')
-                                                        : 'Elegir fechas'}
+                                                        : 'Elegir fecha'}
                                                 </button>
                                             </div>
                                         </article>
@@ -466,7 +489,7 @@ function Tienda() {
 
             {totalArticulos > 0 && !cajonAbierto && (
                 <button className="continuar-barra" onClick={() => setCajonAbierto(true)}>
-                    <span>{totalArticulos} {totalArticulos === 1 ? 'artículo' : 'artículos'} · {dinero(totalDiario * dias)} {moneda}</span>
+                    <span>{totalArticulos} {totalArticulos === 1 ? 'artículo' : 'artículos'} · {dinero(totalPedido)} {moneda}</span>
                     <b>Continuar →</b>
                 </button>
             )}
@@ -480,8 +503,8 @@ function Tienda() {
                     <button onClick={() => setCajonAbierto(false)} aria-label="Cerrar">×</button>
                 </div>
                 <div className="drawer-content">
-                    {dias > 0 && (
-                        <p className="drawer-date">◫ {inicio} — {fin} · {dias} {dias === 1 ? 'día' : 'días'}</p>
+                    {hayFecha && (
+                        <p className="drawer-date">◫ Evento: {fechaEvento} · recoges el {inicioRango} después de las 5:00 PM</p>
                     )}
                     {!enCarrito.length ? (
                         <div className="empty">
@@ -496,7 +519,7 @@ function Tienda() {
                                     <img src={producto.foto_url || 'images/producto-arco.png'} alt="" />
                                     <div>
                                         <strong>{producto.nombre}</strong>
-                                        <small>{dinero(producto.precio_dia)} {moneda} / día</small>
+                                        <small>{dinero(producto.precio_dia)} {moneda}</small>
                                     </div>
                                     <div className="qty">
                                         <button onClick={() => quitar(producto)} aria-label="Quitar uno">−</button>
@@ -508,9 +531,29 @@ function Tienda() {
                                 </div>
                             ))}
                             <div className="total">
-                                <span>Total estimado</span>
-                                <strong>{dinero(totalDiario * dias)} {moneda}</strong>
+                                <span>Total</span>
+                                <strong>{dinero(totalPedido)} {moneda}</strong>
                             </div>
+                            {anticipo > 0 && (
+                                <div className="anticipo-desglose">
+                                    <p>
+                                        <span>Anticipo ({negocio.anticipo_porciento}%)</span>
+                                        <strong>{dinero(anticipo)} {moneda}</strong>
+                                    </p>
+                                    <p>
+                                        <span>Resto al recoger</span>
+                                        <strong>{dinero(totalPedido - anticipo)} {moneda}</strong>
+                                    </p>
+                                </div>
+                            )}
+                            {anticipo > 0 && negocio.pago_tarjeta && (
+                                <div className="datos-pago">
+                                    <strong>Para confirmar tu reserva, transfiere el anticipo a:</strong>
+                                    <p>Tarjeta: <b>{negocio.pago_tarjeta}</b></p>
+                                    {negocio.pago_telefono && <p>Teléfono: <b>{negocio.pago_telefono}</b></p>}
+                                    <small>Tu reserva queda confirmada cuando el negocio reciba el anticipo.</small>
+                                </div>
+                            )}
                             <form className="checkout" onSubmit={enviarPedido}>
                                 <input placeholder="Tu nombre" required value={nombre}
                                     onChange={(e) => setNombre(e.target.value)} />
