@@ -60,7 +60,7 @@ const PRODUCTO_VACIO = { nombre: '', descripcion: '', categoria: 'Decoración', 
 // Debe reproducir exactamente el default de la columna en
 // sql/03-mejoras-panel.sql (chr(10) allí == '\n' aquí).
 const PLANTILLA_CONFIRMACION_POR_DEFECTO =
-    'Hola {nombre}, tu pedido {pedido_id} quedó confirmado ✅\n' +
+    'Hola {nombre}, tu pedido quedó confirmado ✅\n' +
     '📅 {fechas}\n' +
     '💰 Total: {total}\n' +
     'Cualquier duda me avisas. ¡Gracias por tu preferencia!';

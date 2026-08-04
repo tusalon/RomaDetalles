@@ -83,7 +83,7 @@ function mensajeDeError(raw: string): { mensaje: string; status: number } {
 }
 
 const PLANTILLA_SOLICITUD_POR_DEFECTO =
-  "Hola, deseo solicitar este alquiler ({pedido_id}):\n" +
+  "Hola, deseo solicitar este alquiler:\n" +
   "📅 Evento: {fechas}\n" +
   "\n" +
   "{items}\n" +

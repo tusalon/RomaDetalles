@@ -22,7 +22,7 @@ function hoyPanel() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 const PRODUCTO_VACIO = { nombre: "", descripcion: "", categoria: "Decoración", precio_dia: "", cantidad: 1 };
-const PLANTILLA_CONFIRMACION_POR_DEFECTO = "Hola {nombre}, tu pedido {pedido_id} quedó confirmado ✅\n📅 {fechas}\n💰 Total: {total}\nCualquier duda me avisas. ¡Gracias por tu preferencia!";
+const PLANTILLA_CONFIRMACION_POR_DEFECTO = "Hola {nombre}, tu pedido quedó confirmado ✅\n📅 {fechas}\n💰 Total: {total}\nCualquier duda me avisas. ¡Gracias por tu preferencia!";
 function armarMensajeConfirmacion(plantilla, pedido, moneda) {
   const fechas = pedido.dias > 1 ? `${fechaLargaPanel(pedido.fecha_inicio)} al ${fechaLargaPanel(pedido.fecha_fin)} (${pedido.dias} días)` : fechaLargaPanel(pedido.fecha_evento || pedido.fecha_inicio);
   const total = `${dineroPanel(pedido.total)} ${moneda}`;
