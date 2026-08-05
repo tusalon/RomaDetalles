@@ -93,7 +93,8 @@ const PLANTILLA_SOLICITUD_POR_DEFECTO =
   "👤 Cliente: {nombre}\n" +
   "{telefono}\n" +
   "{notas}\n" +
-  "Quedo pendiente de confirmación. Gracias.";
+  "Quedo pendiente de confirmación. Gracias.\n" +
+  "🔗 Guarda tu reserva aquí: {enlace_reserva}";
 
 /**
  * Rellena la plantilla de solicitud (editable por el negocio en
@@ -116,6 +117,7 @@ function armarMensajeSolicitud(
     notas: string;
     tarjeta: string;
     telefonoPago: string;
+    enlaceReserva: string;
   },
 ): string {
   const base = plantilla && plantilla.trim() ? plantilla : PLANTILLA_SOLICITUD_POR_DEFECTO;
@@ -145,6 +147,7 @@ function armarMensajeSolicitud(
     .replaceAll("{anticipo}", lineasAnticipo.join("\n"))
     .replaceAll("{tarjeta}", datos.tarjeta)
     .replaceAll("{telefono_pago}", datos.telefonoPago)
+    .replaceAll("{enlace_reserva}", datos.enlaceReserva)
     .replaceAll("{nombre}", datos.nombre)
     .replaceAll("{telefono}", datos.telefono ? `📞 ${datos.telefono}` : "")
     .replaceAll("{notas}", datos.notas ? `📝 ${datos.notas}` : "");
@@ -271,6 +274,7 @@ Deno.serve(async (req) => {
     notas,
     tarjeta: negocio.pago_tarjeta || "",
     telefonoPago: negocio.pago_telefono || "",
+    enlaceReserva: `https://tusalon.github.io/RomaDetalles/index.html?reserva=${pedido.token_acceso}`,
   });
 
   const numero = (negocio.whatsapp || "").replace(/\D/g, "");
