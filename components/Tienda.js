@@ -600,3 +600,192 @@ function Tienda() {
 }
 
 window.Tienda = Tienda;
+
+const ETIQUETA_ESTADO_CLIENTE = {
+    pendiente: 'Pendiente',
+    confirmado: 'Confirmada',
+    entregado: 'Entregada',
+    devuelto: 'Devuelta',
+    cancelado: 'Cancelada'
+};
+
+function tokenDeLaUrl() {
+    return new URLSearchParams(window.location.search).get('reserva') || '';
+}
+
+// Guarda el token en localStorage (hasta los últimos 10) para que
+// "Mis reservas" pueda ofrecerlo de nuevo sin que la clienta tenga que
+// volver a buscar el enlace de WhatsApp.
+function guardarReservaLocal(token) {
+    try {
+        const clave = 'romadetallesMisReservas';
+        const actual = JSON.parse(localStorage.getItem(clave) || '[]');
+        if (!actual.includes(token)) {
+            actual.push(token);
+            localStorage.setItem(clave, JSON.stringify(actual.slice(-10)));
+        }
+    } catch (e) {
+        console.warn('[MiReserva] no se pudo guardar en localStorage:', e);
+    }
+}
+
+function tokensGuardados() {
+    try {
+        return JSON.parse(localStorage.getItem('romadetallesMisReservas') || '[]');
+    } catch {
+        return [];
+    }
+}
+
+// Archivo .ics mínimo (formato VCALENDAR/VEVENT) — sin librerías. Es lo
+// que de verdad deja la cita guardada en el Calendario nativo del
+// teléfono (iPhone, Android, Google Calendar la abren directo).
+function armarICS(reserva) {
+    const fecha = reserva.fecha_evento.replace(/-/g, '');
+    const items = (reserva.items || [])
+        .map((i) => `${i.cantidad} x ${i.producto_nombre}`)
+        .join(', ');
+    return [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//RomaDetalles//Reserva//ES',
+        'BEGIN:VEVENT',
+        `UID:${reserva.pedido_id}@romadetalles`,
+        `DTSTART;VALUE=DATE:${fecha}`,
+        `SUMMARY:Evento — ${reserva.negocio_nombre}`,
+        `DESCRIPTION:${items}`,
+        'END:VEVENT',
+        'END:VCALENDAR'
+    ].join('\r\n');
+}
+
+function descargarICS(reserva) {
+    const blob = new Blob([armarICS(reserva)], { type: 'text/calendar;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `reserva-${reserva.fecha_evento}.ics`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+function MiReserva({ token }) {
+    const [cargando, setCargando] = useState(true);
+    const [error, setError] = useState('');
+    const [reserva, setReserva] = useState(null);
+    const [otrasGuardadas, setOtrasGuardadas] = useState([]);
+
+    useEffect(() => {
+        (async () => {
+            try {
+                const filas = await window.supaRpc('alquiler_pedido_por_token', { p_token: token });
+                if (!filas.length) {
+                    setError('No encontramos esta reserva. Revisa el enlace.');
+                    setCargando(false);
+                    return;
+                }
+                setReserva(filas[0]);
+                guardarReservaLocal(token);
+            } catch (e) {
+                console.error('[MiReserva] error cargando:', e);
+                setError('No se pudo cargar tu reserva. Revisa tu conexión.');
+            } finally {
+                setCargando(false);
+            }
+        })();
+    }, [token]);
+
+    // Otras reservas guardadas en este teléfono, para el enlace "Ver
+    // mis otras reservas" — se resuelven en paralelo, cada una con su
+    // propio RPC (la lista es corta, como mucho 10).
+    useEffect(() => {
+        const tokens = tokensGuardados().filter((t) => t !== token);
+        if (!tokens.length) return;
+        let vigente = true;
+        Promise.all(
+            tokens.map((t) =>
+                window.supaRpc('alquiler_pedido_por_token', { p_token: t })
+                    .then((filas) => (filas[0] ? { token: t, fecha_evento: filas[0].fecha_evento } : null))
+                    .catch(() => null)
+            )
+        ).then((resultados) => {
+            if (vigente) setOtrasGuardadas(resultados.filter(Boolean));
+        });
+        return () => { vigente = false; };
+    }, [token]);
+
+    if (cargando) {
+        return (
+            <div className="empty" style={{ minHeight: '100dvh', justifyContent: 'center' }}>
+                <span>✦</span>
+                <h3>Cargando tu reserva…</h3>
+            </div>
+        );
+    }
+
+    if (error || !reserva) {
+        return (
+            <div className="empty" style={{ minHeight: '100dvh', justifyContent: 'center' }}>
+                <span>✦</span>
+                <h3>{error || 'No encontramos esta reserva.'}</h3>
+            </div>
+        );
+    }
+
+    const moneda = reserva.moneda || 'CUP';
+    const etiqueta = ETIQUETA_ESTADO_CLIENTE[reserva.estado] || reserva.estado;
+
+    function solicitarCambio() {
+        const numero = (reserva.negocio_whatsapp || '').replace(/\D/g, '');
+        const mensaje = `Hola, quiero pedir un cambio en mi reserva del ${fechaLarga(reserva.fecha_evento)}.`;
+        window.open(`https://wa.me/${numero}?text=${encodeURIComponent(mensaje)}`, '_blank');
+    }
+
+    return (
+        <main>
+            <header className="header">
+                <a className="brand" href="#"><span>✦</span> {reserva.negocio_nombre}</a>
+            </header>
+            <section className="shell" style={{ paddingBlock: '60px' }}>
+                <div className="admin-card" style={{ margin: '0 auto', maxWidth: '480px', padding: '28px' }}>
+                    <span className={`order-chip ${reserva.estado}`}>{etiqueta}</span>
+                    <h1 style={{ color: 'var(--burgundy)', fontFamily: 'var(--serif)', margin: '14px 0 4px' }}>
+                        {fechaLarga(reserva.fecha_evento)}
+                    </h1>
+                    <p style={{ color: 'var(--muted)' }}>
+                        Recoges el {fechaLarga(reserva.fecha_inicio)} después de las 5:00 PM
+                    </p>
+                    <ul>
+                        {(reserva.items || []).map((item, i) => (
+                            <li key={i}>{item.cantidad} × {item.producto_nombre}</li>
+                        ))}
+                    </ul>
+                    <p><strong>Total: {dinero(reserva.total)} {moneda}</strong></p>
+                    {Number(reserva.anticipo) > 0 && (
+                        <p>Anticipo: {dinero(reserva.anticipo)} {moneda}</p>
+                    )}
+                    <div style={{ display: 'grid', gap: '10px', marginTop: '20px' }}>
+                        <button className="primary" onClick={() => descargarICS(reserva)}>
+                            Agregar a mi calendario
+                        </button>
+                        <button className="secondary" onClick={solicitarCambio}>
+                            Solicitar un cambio
+                        </button>
+                    </div>
+                    {otrasGuardadas.length > 0 && (
+                        <div className="mis-reservas-otras">
+                            <small>Tus otras reservas guardadas:</small>
+                            {otrasGuardadas.map((r) => (
+                                <a key={r.token} href={`?reserva=${r.token}`}>{fechaLarga(r.fecha_evento)}</a>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </section>
+        </main>
+    );
+}
+
+window.MiReserva = MiReserva;

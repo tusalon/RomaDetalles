@@ -1,2 +1,5 @@
 const raizTienda = document.getElementById("root");
-ReactDOM.createRoot(raizTienda).render(React.createElement(window.Tienda));
+const tokenReserva = new URLSearchParams(window.location.search).get("reserva");
+ReactDOM.createRoot(raizTienda).render(
+  tokenReserva ? React.createElement(window.MiReserva, { token: tokenReserva }) : React.createElement(window.Tienda)
+);

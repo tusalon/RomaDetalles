@@ -325,3 +325,114 @@ function Tienda() {
   ), /* @__PURE__ */ React.createElement("img", { src: fotoAmpliada.imagen_url, alt: fotoAmpliada.descripcion || "" }), fotoAmpliada.descripcion && /* @__PURE__ */ React.createElement("p", null, fotoAmpliada.descripcion))));
 }
 window.Tienda = Tienda;
+const ETIQUETA_ESTADO_CLIENTE = {
+  pendiente: "Pendiente",
+  confirmado: "Confirmada",
+  entregado: "Entregada",
+  devuelto: "Devuelta",
+  cancelado: "Cancelada"
+};
+function tokenDeLaUrl() {
+  return new URLSearchParams(window.location.search).get("reserva") || "";
+}
+function guardarReservaLocal(token) {
+  try {
+    const clave = "romadetallesMisReservas";
+    const actual = JSON.parse(localStorage.getItem(clave) || "[]");
+    if (!actual.includes(token)) {
+      actual.push(token);
+      localStorage.setItem(clave, JSON.stringify(actual.slice(-10)));
+    }
+  } catch (e) {
+    console.warn("[MiReserva] no se pudo guardar en localStorage:", e);
+  }
+}
+function tokensGuardados() {
+  try {
+    return JSON.parse(localStorage.getItem("romadetallesMisReservas") || "[]");
+  } catch {
+    return [];
+  }
+}
+function armarICS(reserva) {
+  const fecha = reserva.fecha_evento.replace(/-/g, "");
+  const items = (reserva.items || []).map((i) => `${i.cantidad} x ${i.producto_nombre}`).join(", ");
+  return [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//RomaDetalles//Reserva//ES",
+    "BEGIN:VEVENT",
+    `UID:${reserva.pedido_id}@romadetalles`,
+    `DTSTART;VALUE=DATE:${fecha}`,
+    `SUMMARY:Evento — ${reserva.negocio_nombre}`,
+    `DESCRIPTION:${items}`,
+    "END:VEVENT",
+    "END:VCALENDAR"
+  ].join("\r\n");
+}
+function descargarICS(reserva) {
+  const blob = new Blob([armarICS(reserva)], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `reserva-${reserva.fecha_evento}.ics`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function MiReserva({ token }) {
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState("");
+  const [reserva, setReserva] = useState(null);
+  const [otrasGuardadas, setOtrasGuardadas] = useState([]);
+  useEffect(() => {
+    (async () => {
+      try {
+        const filas = await window.supaRpc("alquiler_pedido_por_token", { p_token: token });
+        if (!filas.length) {
+          setError("No encontramos esta reserva. Revisa el enlace.");
+          setCargando(false);
+          return;
+        }
+        setReserva(filas[0]);
+        guardarReservaLocal(token);
+      } catch (e) {
+        console.error("[MiReserva] error cargando:", e);
+        setError("No se pudo cargar tu reserva. Revisa tu conexión.");
+      } finally {
+        setCargando(false);
+      }
+    })();
+  }, [token]);
+  useEffect(() => {
+    const tokens = tokensGuardados().filter((t) => t !== token);
+    if (!tokens.length) return;
+    let vigente = true;
+    Promise.all(
+      tokens.map(
+        (t) => window.supaRpc("alquiler_pedido_por_token", { p_token: t }).then((filas) => filas[0] ? { token: t, fecha_evento: filas[0].fecha_evento } : null).catch(() => null)
+      )
+    ).then((resultados) => {
+      if (vigente) setOtrasGuardadas(resultados.filter(Boolean));
+    });
+    return () => {
+      vigente = false;
+    };
+  }, [token]);
+  if (cargando) {
+    return /* @__PURE__ */ React.createElement("div", { className: "empty", style: { minHeight: "100dvh", justifyContent: "center" } }, /* @__PURE__ */ React.createElement("span", null, "✦"), /* @__PURE__ */ React.createElement("h3", null, "Cargando tu reserva…"));
+  }
+  if (error || !reserva) {
+    return /* @__PURE__ */ React.createElement("div", { className: "empty", style: { minHeight: "100dvh", justifyContent: "center" } }, /* @__PURE__ */ React.createElement("span", null, "✦"), /* @__PURE__ */ React.createElement("h3", null, error || "No encontramos esta reserva."));
+  }
+  const moneda = reserva.moneda || "CUP";
+  const etiqueta = ETIQUETA_ESTADO_CLIENTE[reserva.estado] || reserva.estado;
+  function solicitarCambio() {
+    const numero = (reserva.negocio_whatsapp || "").replace(/\D/g, "");
+    const mensaje = `Hola, quiero pedir un cambio en mi reserva del ${fechaLarga(reserva.fecha_evento)}.`;
+    window.open(`https://wa.me/${numero}?text=${encodeURIComponent(mensaje)}`, "_blank");
+  }
+  return /* @__PURE__ */ React.createElement("main", null, /* @__PURE__ */ React.createElement("header", { className: "header" }, /* @__PURE__ */ React.createElement("a", { className: "brand", href: "#" }, /* @__PURE__ */ React.createElement("span", null, "✦"), " ", reserva.negocio_nombre)), /* @__PURE__ */ React.createElement("section", { className: "shell", style: { paddingBlock: "60px" } }, /* @__PURE__ */ React.createElement("div", { className: "admin-card", style: { margin: "0 auto", maxWidth: "480px", padding: "28px" } }, /* @__PURE__ */ React.createElement("span", { className: `order-chip ${reserva.estado}` }, etiqueta), /* @__PURE__ */ React.createElement("h1", { style: { color: "var(--burgundy)", fontFamily: "var(--serif)", margin: "14px 0 4px" } }, fechaLarga(reserva.fecha_evento)), /* @__PURE__ */ React.createElement("p", { style: { color: "var(--muted)" } }, "Recoges el ", fechaLarga(reserva.fecha_inicio), " después de las 5:00 PM"), /* @__PURE__ */ React.createElement("ul", null, (reserva.items || []).map((item, i) => /* @__PURE__ */ React.createElement("li", { key: i }, item.cantidad, " × ", item.producto_nombre))), /* @__PURE__ */ React.createElement("p", null, /* @__PURE__ */ React.createElement("strong", null, "Total: ", dinero(reserva.total), " ", moneda)), Number(reserva.anticipo) > 0 && /* @__PURE__ */ React.createElement("p", null, "Anticipo: ", dinero(reserva.anticipo), " ", moneda), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gap: "10px", marginTop: "20px" } }, /* @__PURE__ */ React.createElement("button", { className: "primary", onClick: () => descargarICS(reserva) }, "Agregar a mi calendario"), /* @__PURE__ */ React.createElement("button", { className: "secondary", onClick: solicitarCambio }, "Solicitar un cambio")), otrasGuardadas.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "mis-reservas-otras" }, /* @__PURE__ */ React.createElement("small", null, "Tus otras reservas guardadas:"), otrasGuardadas.map((r) => /* @__PURE__ */ React.createElement("a", { key: r.token, href: `?reserva=${r.token}` }, fechaLarga(r.fecha_evento)))))));
+}
+window.MiReserva = MiReserva;

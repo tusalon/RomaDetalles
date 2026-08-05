@@ -216,6 +216,9 @@ h1,h2,h3,p { text-wrap: pretty; }
 .datos-pago p { color:var(--ink); font-size:13px; margin:8px 0 0; }
 .datos-pago b { font-variant-numeric:tabular-nums; }
 .datos-pago small { color:var(--purple); display:block; font-size:10px; font-weight:700; margin-top:10px; }
+.mis-reservas-otras { border-top:1px solid var(--border); display:grid; gap:6px; margin-top:18px; padding-top:14px; }
+.mis-reservas-otras small { color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:.06em; }
+.mis-reservas-otras a { color:var(--purple); font-size:13px; text-decoration:underline; text-underline-offset:3px; }
 .checkout { display:grid; gap:10px; margin-top:22px; }
 .checkout input,.checkout textarea { border:1px solid var(--border); border-radius:9px; min-height:44px; padding:10px 12px; }
 .checkout textarea { min-height:75px; resize:vertical; }
