@@ -633,6 +633,8 @@ function Panel({ negocioInicial, email }) {
             }
             setPedidos((actual) => actual.map((p) =>
                 p.id === pedido.id ? { ...p, estado } : p));
+            setPedidosMes((actual) => actual.map((p) =>
+                p.id === pedido.id ? { ...p, estado } : p));
             notificar(`Reserva ${ETIQUETA_ESTADO[estado].toLowerCase()}.`);
 
             // Al confirmar, abrir un WhatsApp hacia LA CLIENTA (no el negocio)
@@ -665,6 +667,7 @@ function Panel({ negocioInicial, email }) {
             );
             if (res.ok) {
                 setPedidos((actual) => actual.filter((p) => p.id !== pedido.id));
+                setPedidosMes((actual) => actual.filter((p) => p.id !== pedido.id));
                 notificar('Reserva quitada de la lista.');
             } else {
                 notificar('No se pudo eliminar la reserva.');

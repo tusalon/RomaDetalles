@@ -432,6 +432,7 @@ function Panel({ negocioInicial, email }) {
         return;
       }
       setPedidos((actual) => actual.map((p) => p.id === pedido.id ? { ...p, estado } : p));
+      setPedidosMes((actual) => actual.map((p) => p.id === pedido.id ? { ...p, estado } : p));
       notificar(`Reserva ${ETIQUETA_ESTADO[estado].toLowerCase()}.`);
       if (estado === "confirmado" && pedido.cliente_telefono) {
         const numero = pedido.cliente_telefono.replace(/\D/g, "");
@@ -458,6 +459,7 @@ function Panel({ negocioInicial, email }) {
       );
       if (res.ok) {
         setPedidos((actual) => actual.filter((p) => p.id !== pedido.id));
+        setPedidosMes((actual) => actual.filter((p) => p.id !== pedido.id));
         notificar("Reserva quitada de la lista.");
       } else {
         notificar("No se pudo eliminar la reserva.");
