@@ -287,6 +287,18 @@ h1,h2,h3,p { text-wrap: pretty; }
 .reserva-filtros { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
 .reserva-filtros button { background:white; border:1px solid var(--border); border-radius:999px; cursor:pointer; font-size:12px; font-weight:700; min-height:38px; padding:0 16px; }
 .reserva-filtros button.active { background:var(--burgundy); border-color:var(--burgundy); color:white; }
+.vista-toggle { background:var(--cream); border-radius:10px; display:flex; gap:2px; padding:3px; }
+.vista-toggle button { background:transparent; border:0; border-radius:8px; cursor:pointer; font-size:12px; font-weight:700; min-height:36px; padding:0 14px; }
+.vista-toggle button.active { background:var(--burgundy); color:white; }
+.calendario-nav { align-items:center; display:flex; gap:16px; justify-content:center; margin-bottom:16px; }
+.calendario-nav button { background:var(--cream); border:0; border-radius:50%; cursor:pointer; font-size:16px; height:36px; width:36px; }
+.calendario-nav strong { color:var(--burgundy); font-family:var(--serif); font-size:18px; text-transform:capitalize; }
+.calendario-grid { display:grid; gap:6px; grid-template-columns:repeat(7,1fr); }
+.calendario-dow { color:var(--muted); font-size:10px; font-weight:800; text-align:center; text-transform:uppercase; }
+.calendario-dia { aspect-ratio:1; background:white; border:1px solid var(--border); border-radius:10px; cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:4px; position:relative; }
+.calendario-dia.vacio { background:transparent; border-color:transparent; cursor:default; }
+.calendario-dia.activo { border-color:var(--burgundy); border-width:2px; }
+.calendario-dia b { background:var(--burgundy); border-radius:999px; color:white; font-size:10px; min-width:16px; padding:1px 5px; }
 
 /* --- Acceso al panel ------------------------------------------------ */
 .login-wrap { align-items:center; display:flex; justify-content:center; min-height:100dvh; padding:24px; }

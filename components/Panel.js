@@ -110,6 +110,25 @@ function cumpleFiltroReserva(estado, filtro) {
     return true;
 }
 
+const NOMBRES_MES = [
+    'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+    'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
+];
+
+// Cuadrícula del mes: null para los huecos antes del día 1 (para que
+// el primer día caiga en su columna real de domingo a sábado).
+function diasDelMesPanel(mesStr) {
+    const [anio, mes] = mesStr.split('-').map(Number);
+    const primerDia = new Date(anio, mes - 1, 1);
+    const ultimoDia = new Date(anio, mes, 0).getDate();
+    const celdas = [];
+    for (let i = 0; i < primerDia.getDay(); i++) celdas.push(null);
+    for (let d = 1; d <= ultimoDia; d++) {
+        celdas.push(`${mesStr}-${String(d).padStart(2, '0')}`);
+    }
+    return celdas;
+}
+
 // ---------------------------------------------------------------------
 // Tarjeta de avisos push
 // ---------------------------------------------------------------------
@@ -271,6 +290,13 @@ function Panel({ negocioInicial, email }) {
     const [creandoProducto, setCreandoProducto] = useState(false);
     const [reservaManual, setReservaManual] = useState(null);
     const [filtroReservas, setFiltroReservas] = useState('todas');
+    const [vistaReservas, setVistaReservas] = useState('lista');
+    const [mesCalendario, setMesCalendario] = useState(() => {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    });
+    const [pedidosMes, setPedidosMes] = useState([]);
+    const [diaSeleccionado, setDiaSeleccionado] = useState(null);
     const [creandoReserva, setCreandoReserva] = useState(false);
     const [galeria, setGaleria] = useState([]);
     const [subiendoFotoGaleria, setSubiendoFotoGaleria] = useState(false);
@@ -311,6 +337,25 @@ function Panel({ negocioInicial, email }) {
         }
     }, [negocio.id]);
 
+    const cargarPedidosDelMes = useCallback(async () => {
+        const [anio, mes] = mesCalendario.split('-').map(Number);
+        const desde = `${mesCalendario}-01`;
+        const hasta = `${mesCalendario}-${String(new Date(anio, mes, 0).getDate()).padStart(2, '0')}`;
+        try {
+            const filas = await window.supaGet(
+                `alquiler_pedidos?negocio_id=eq.${negocio.id}&oculto=eq.false` +
+                `&fecha_evento=gte.${desde}&fecha_evento=lte.${hasta}` +
+                `&select=id,cliente_nombre,cliente_telefono,fecha_evento,fecha_inicio,fecha_fin,dias,total,anticipo,estado,notas,creado_en,` +
+                `alquiler_pedido_items(id,producto_nombre,cantidad)` +
+                `&order=fecha_evento.asc`
+            );
+            setPedidosMes(filas);
+        } catch (e) {
+            console.error('[Panel] error cargando calendario:', e);
+            notificar('No se pudo cargar el calendario.');
+        }
+    }, [negocio.id, mesCalendario]);
+
     const cargarOcupacion = useCallback(async () => {
         try {
             setOcupacion(await window.supaRpc('alquiler_ocupacion', {
@@ -337,6 +382,9 @@ function Panel({ negocioInicial, email }) {
     }, [negocio.id]);
 
     useEffect(() => { cargarProductos(); cargarPedidos(); }, [cargarProductos, cargarPedidos]);
+    useEffect(() => {
+        if (pestana === 'reservas' && vistaReservas === 'calendario') cargarPedidosDelMes();
+    }, [pestana, vistaReservas, cargarPedidosDelMes]);
     useEffect(() => { if (pestana === 'ocupacion') cargarOcupacion(); }, [pestana, cargarOcupacion]);
     useEffect(() => { if (pestana === 'galeria') cargarGaleria(); }, [pestana, cargarGaleria]);
 
@@ -627,6 +675,13 @@ function Panel({ negocioInicial, email }) {
         }
     }
 
+    function cambiarMesCalendario(delta) {
+        const [anio, mes] = mesCalendario.split('-').map(Number);
+        const d = new Date(anio, mes - 1 + delta, 1);
+        setMesCalendario(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+        setDiaSeleccionado(null);
+    }
+
     async function salir() {
         await window.AlquilerAuth.salir();
         window.location.replace('admin-login.html');
@@ -759,10 +814,18 @@ function Panel({ negocioInicial, email }) {
                                     <h1>Reservas</h1>
                                 </div>
                                 <div style={{ display: 'flex', gap: '8px' }}>
+                                    <div className="vista-toggle">
+                                        <button className={vistaReservas === 'lista' ? 'active' : ''}
+                                            onClick={() => setVistaReservas('lista')}>Lista</button>
+                                        <button className={vistaReservas === 'calendario' ? 'active' : ''}
+                                            onClick={() => setVistaReservas('calendario')}>Calendario</button>
+                                    </div>
                                     {!reservaManual && (
                                         <button onClick={abrirReservaManual}>+ Reserva manual</button>
                                     )}
-                                    <button onClick={cargarPedidos}>Actualizar</button>
+                                    <button onClick={vistaReservas === 'calendario' ? cargarPedidosDelMes : cargarPedidos}>
+                                        Actualizar
+                                    </button>
                                 </div>
                             </div>
 
@@ -837,19 +900,64 @@ function Panel({ negocioInicial, email }) {
                                 ))}
                             </div>
 
-                            <div className="admin-orders">
-                                {!pedidos.filter((p) => cumpleFiltroReserva(p.estado, filtroReservas)).length && (
-                                    <div className="admin-card empty-orders">
-                                        {pedidos.length ? 'Ninguna reserva con ese filtro.' : 'Todavía no hay solicitudes.'}
+                            {vistaReservas === 'lista' ? (
+                                <div className="admin-orders">
+                                    {!pedidos.filter((p) => cumpleFiltroReserva(p.estado, filtroReservas)).length && (
+                                        <div className="admin-card empty-orders">
+                                            {pedidos.length ? 'Ninguna reserva con ese filtro.' : 'Todavía no hay solicitudes.'}
+                                        </div>
+                                    )}
+                                    {pedidos
+                                        .filter((p) => cumpleFiltroReserva(p.estado, filtroReservas))
+                                        .map((pedido) => (
+                                            <TarjetaReserva key={pedido.id} pedido={pedido} moneda={moneda}
+                                                onCambiarEstado={cambiarEstado} onEliminar={eliminarReserva} />
+                                        ))}
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="calendario-nav">
+                                        <button onClick={() => cambiarMesCalendario(-1)}>←</button>
+                                        <strong>
+                                            {NOMBRES_MES[Number(mesCalendario.split('-')[1]) - 1]} {mesCalendario.split('-')[0]}
+                                        </strong>
+                                        <button onClick={() => cambiarMesCalendario(1)}>→</button>
                                     </div>
-                                )}
-                                {pedidos
-                                    .filter((p) => cumpleFiltroReserva(p.estado, filtroReservas))
-                                    .map((pedido) => (
-                                        <TarjetaReserva key={pedido.id} pedido={pedido} moneda={moneda}
-                                            onCambiarEstado={cambiarEstado} onEliminar={eliminarReserva} />
-                                    ))}
-                            </div>
+                                    <div className="calendario-grid">
+                                        {['D', 'L', 'M', 'M', 'J', 'V', 'S'].map((d, i) => (
+                                            <span className="calendario-dow" key={i}>{d}</span>
+                                        ))}
+                                        {diasDelMesPanel(mesCalendario).map((dia, i) => {
+                                            const enEsteDia = dia ? pedidosMes.filter((p) => p.fecha_evento === dia) : [];
+                                            return (
+                                                <button key={i}
+                                                    className={`calendario-dia${dia ? '' : ' vacio'}${diaSeleccionado === dia ? ' activo' : ''}`}
+                                                    disabled={!dia}
+                                                    onClick={() => setDiaSeleccionado(dia)}>
+                                                    {dia && <span>{Number(dia.split('-')[2])}</span>}
+                                                    {enEsteDia.length > 0 && <b>{enEsteDia.length}</b>}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                    {diaSeleccionado && (
+                                        <div className="admin-orders" style={{ marginTop: '20px' }}>
+                                            <h3>{fechaLargaPanel(diaSeleccionado)}</h3>
+                                            {!pedidosMes.filter((p) => p.fecha_evento === diaSeleccionado).length && (
+                                                <div className="admin-card empty-orders">
+                                                    No hay reservas ese día.
+                                                </div>
+                                            )}
+                                            {pedidosMes
+                                                .filter((p) => p.fecha_evento === diaSeleccionado)
+                                                .map((pedido) => (
+                                                    <TarjetaReserva key={pedido.id} pedido={pedido} moneda={moneda}
+                                                        onCambiarEstado={cambiarEstado} onEliminar={eliminarReserva} />
+                                                ))}
+                                        </div>
+                                    )}
+                                </>
+                            )}
                         </>
                     )}
 
