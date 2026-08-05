@@ -102,6 +102,14 @@ function mensajeDeErrorReserva(error) {
     return 'No se pudo crear la reserva. Inténtalo de nuevo.';
 }
 
+function cumpleFiltroReserva(estado, filtro) {
+    if (filtro === 'todas') return true;
+    if (filtro === 'pendientes') return estado === 'pendiente' || estado === 'confirmado';
+    if (filtro === 'completadas') return estado === 'entregado' || estado === 'devuelto';
+    if (filtro === 'canceladas') return estado === 'cancelado';
+    return true;
+}
+
 // ---------------------------------------------------------------------
 // Tarjeta de avisos push
 // ---------------------------------------------------------------------
@@ -190,6 +198,63 @@ function TarjetaAvisos({ negocioId }) {
 }
 
 // ---------------------------------------------------------------------
+// Tarjeta de una reserva — la usan tanto la Lista como el Calendario
+// ---------------------------------------------------------------------
+function TarjetaReserva({ pedido, moneda, onCambiarEstado, onEliminar }) {
+    const puedeEliminar =
+        pedido.estado === 'entregado' || pedido.estado === 'devuelto' || pedido.estado === 'cancelado';
+
+    return (
+        <article className="admin-order admin-card">
+            <div>
+                <span className={`order-chip ${pedido.estado}`}>
+                    {ETIQUETA_ESTADO[pedido.estado] || pedido.estado}
+                </span>
+                <h3>{pedido.cliente_nombre}</h3>
+                {pedido.dias > 1
+                    ? <p>{pedido.id} · Reserva anterior: {fechaLargaPanel(pedido.fecha_inicio)} al {fechaLargaPanel(pedido.fecha_fin)} · {pedido.dias} días</p>
+                    : <p>{pedido.id} · Evento: {fechaLargaPanel(pedido.fecha_evento || pedido.fecha_inicio)}</p>}
+                {pedido.dias <= 1 && (
+                    <p>Recoge el {fechaLargaPanel(pedido.fecha_inicio)} después de las 5:00 PM</p>
+                )}
+                {pedido.cliente_telefono && (
+                    <p>📞 <a href={`tel:${pedido.cliente_telefono}`}>{pedido.cliente_telefono}</a></p>
+                )}
+                {pedido.notas && <p>📝 {pedido.notas}</p>}
+            </div>
+            <ul>
+                {(pedido.alquiler_pedido_items || []).map((item) => (
+                    <li key={item.id}>{item.cantidad} × {item.producto_nombre}</li>
+                ))}
+            </ul>
+            <div className="order-importes">
+                <strong>{dineroPanel(pedido.total)} {moneda}</strong>
+                {Number(pedido.anticipo) > 0 && (
+                    <small>Anticipo: {dineroPanel(pedido.anticipo)} {moneda}</small>
+                )}
+            </div>
+            <div>
+                {pedido.estado === 'pendiente' && (
+                    <button onClick={() => onCambiarEstado(pedido, 'confirmado')}>Confirmar</button>
+                )}
+                {pedido.estado === 'confirmado' && (
+                    <button onClick={() => onCambiarEstado(pedido, 'entregado')}>Entregada</button>
+                )}
+                {pedido.estado === 'entregado' && (
+                    <button onClick={() => onCambiarEstado(pedido, 'devuelto')}>Devuelta</button>
+                )}
+                {pedido.estado !== 'cancelado' && pedido.estado !== 'devuelto' && (
+                    <button className="danger" onClick={() => onCambiarEstado(pedido, 'cancelado')}>Cancelar</button>
+                )}
+                {puedeEliminar && (
+                    <button className="danger" onClick={() => onEliminar(pedido)}>Eliminar</button>
+                )}
+            </div>
+        </article>
+    );
+}
+
+// ---------------------------------------------------------------------
 // Panel principal
 // ---------------------------------------------------------------------
 function Panel({ negocioInicial, email }) {
@@ -205,6 +270,7 @@ function Panel({ negocioInicial, email }) {
     const [productoNuevo, setProductoNuevo] = useState(null);
     const [creandoProducto, setCreandoProducto] = useState(false);
     const [reservaManual, setReservaManual] = useState(null);
+    const [filtroReservas, setFiltroReservas] = useState('todas');
     const [creandoReserva, setCreandoReserva] = useState(false);
     const [galeria, setGaleria] = useState([]);
     const [subiendoFotoGaleria, setSubiendoFotoGaleria] = useState(false);
@@ -233,7 +299,7 @@ function Panel({ negocioInicial, email }) {
     const cargarPedidos = useCallback(async () => {
         try {
             const filas = await window.supaGet(
-                `alquiler_pedidos?negocio_id=eq.${negocio.id}` +
+                `alquiler_pedidos?negocio_id=eq.${negocio.id}&oculto=eq.false` +
                 `&select=id,cliente_nombre,cliente_telefono,fecha_evento,fecha_inicio,fecha_fin,dias,total,anticipo,estado,notas,creado_en,` +
                 `alquiler_pedido_items(id,producto_nombre,cantidad)` +
                 `&order=creado_en.desc&limit=200`
@@ -538,6 +604,29 @@ function Panel({ negocioInicial, email }) {
         }
     }
 
+    async function eliminarReserva(pedido) {
+        if (!window.confirm('¿Quitar esta reserva de la lista? No se borra del historial de Ocupación.')) return;
+        try {
+            const res = await fetch(
+                `${window.SUPABASE_URL}/rest/v1/alquiler_pedidos?id=eq.${pedido.id}`,
+                {
+                    method: 'PATCH',
+                    headers: window.supaHeaders({ Prefer: 'return=minimal' }),
+                    body: JSON.stringify({ oculto: true, actualizado_en: new Date().toISOString() })
+                }
+            );
+            if (res.ok) {
+                setPedidos((actual) => actual.filter((p) => p.id !== pedido.id));
+                notificar('Reserva quitada de la lista.');
+            } else {
+                notificar('No se pudo eliminar la reserva.');
+            }
+        } catch (e) {
+            console.error('[Panel] error eliminando reserva:', e);
+            notificar('No se pudo eliminar la reserva.');
+        }
+    }
+
     async function salir() {
         await window.AlquilerAuth.salir();
         window.location.replace('admin-login.html');
@@ -733,57 +822,33 @@ function Panel({ negocioInicial, email }) {
 
                             <TarjetaAvisos negocioId={negocio.id} />
 
+                            <div className="reserva-filtros">
+                                {[
+                                    ['todas', 'Todas'],
+                                    ['pendientes', 'Pendientes'],
+                                    ['completadas', 'Completadas'],
+                                    ['canceladas', 'Canceladas']
+                                ].map(([valor, etiqueta]) => (
+                                    <button key={valor}
+                                        className={filtroReservas === valor ? 'active' : ''}
+                                        onClick={() => setFiltroReservas(valor)}>
+                                        {etiqueta}
+                                    </button>
+                                ))}
+                            </div>
+
                             <div className="admin-orders">
-                                {!pedidos.length && (
+                                {!pedidos.filter((p) => cumpleFiltroReserva(p.estado, filtroReservas)).length && (
                                     <div className="admin-card empty-orders">
-                                        Todavía no hay solicitudes.
+                                        {pedidos.length ? 'Ninguna reserva con ese filtro.' : 'Todavía no hay solicitudes.'}
                                     </div>
                                 )}
-                                {pedidos.map((pedido) => (
-                                    <article className="admin-order admin-card" key={pedido.id}>
-                                        <div>
-                                            <span className={`order-chip ${pedido.estado}`}>
-                                                {ETIQUETA_ESTADO[pedido.estado] || pedido.estado}
-                                            </span>
-                                            <h3>{pedido.cliente_nombre}</h3>
-                                            {pedido.dias > 1
-                                                ? <p>{pedido.id} · Reserva anterior: {fechaLargaPanel(pedido.fecha_inicio)} al {fechaLargaPanel(pedido.fecha_fin)} · {pedido.dias} días</p>
-                                                : <p>{pedido.id} · Evento: {fechaLargaPanel(pedido.fecha_evento || pedido.fecha_inicio)}</p>}
-                                            {pedido.dias <= 1 && (
-                                                <p>Recoge el {fechaLargaPanel(pedido.fecha_inicio)} después de las 5:00 PM</p>
-                                            )}
-                                            {pedido.cliente_telefono && (
-                                                <p>📞 <a href={`tel:${pedido.cliente_telefono}`}>{pedido.cliente_telefono}</a></p>
-                                            )}
-                                            {pedido.notas && <p>📝 {pedido.notas}</p>}
-                                        </div>
-                                        <ul>
-                                            {(pedido.alquiler_pedido_items || []).map((item) => (
-                                                <li key={item.id}>{item.cantidad} × {item.producto_nombre}</li>
-                                            ))}
-                                        </ul>
-                                        <div className="order-importes">
-                                            <strong>{dineroPanel(pedido.total)} {moneda}</strong>
-                                            {Number(pedido.anticipo) > 0 && (
-                                                <small>Anticipo: {dineroPanel(pedido.anticipo)} {moneda}</small>
-                                            )}
-                                        </div>
-                                        <div>
-                                            {pedido.estado === 'pendiente' && (
-                                                <button onClick={() => cambiarEstado(pedido, 'confirmado')}>Confirmar</button>
-                                            )}
-                                            {pedido.estado === 'confirmado' && (
-                                                <button onClick={() => cambiarEstado(pedido, 'entregado')}>Entregada</button>
-                                            )}
-                                            {pedido.estado === 'entregado' && (
-                                                <button onClick={() => cambiarEstado(pedido, 'devuelto')}>Devuelta</button>
-                                            )}
-                                            {pedido.estado !== 'cancelado' && pedido.estado !== 'devuelto' && (
-                                                <button className="danger" onClick={() => cambiarEstado(pedido, 'cancelado')}>Cancelar</button>
-                                            )}
-                                        </div>
-                                    </article>
-                                ))}
+                                {pedidos
+                                    .filter((p) => cumpleFiltroReserva(p.estado, filtroReservas))
+                                    .map((pedido) => (
+                                        <TarjetaReserva key={pedido.id} pedido={pedido} moneda={moneda}
+                                            onCambiarEstado={cambiarEstado} onEliminar={eliminarReserva} />
+                                    ))}
                             </div>
                         </>
                     )}

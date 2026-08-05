@@ -42,6 +42,13 @@ function mensajeDeErrorReserva(error) {
   console.error("[Panel] error de reserva no reconocido:", texto);
   return "No se pudo crear la reserva. Inténtalo de nuevo.";
 }
+function cumpleFiltroReserva(estado, filtro) {
+  if (filtro === "todas") return true;
+  if (filtro === "pendientes") return estado === "pendiente" || estado === "confirmado";
+  if (filtro === "completadas") return estado === "entregado" || estado === "devuelto";
+  if (filtro === "canceladas") return estado === "cancelado";
+  return true;
+}
 function TarjetaAvisos({ negocioId }) {
   const [activos, setActivos] = useState(false);
   const [estado, setEstado] = useState("");
@@ -80,6 +87,10 @@ function TarjetaAvisos({ negocioId }) {
   }
   return /* @__PURE__ */ React.createElement("div", { className: "admin-card push-card" }, /* @__PURE__ */ React.createElement("h3", null, "Avisos de pedidos nuevos"), /* @__PURE__ */ React.createElement("span", { className: `push-estado ${activos ? "on" : "off"}` }, "● ", activos ? "Activados en este dispositivo" : "Desactivados"), /* @__PURE__ */ React.createElement("p", null, "Con los avisos activados te llega una notificación en cuanto una clienta envía un pedido, sin tener que abrir el panel a revisar."), activos ? /* @__PURE__ */ React.createElement("button", { className: "apagar", onClick: desactivar, disabled: ocupado }, "Desactivar") : /* @__PURE__ */ React.createElement("button", { onClick: activar, disabled: ocupado }, ocupado ? "Activando…" : "Activar avisos"), mensaje && /* @__PURE__ */ React.createElement("p", { className: "order-status" }, mensaje));
 }
+function TarjetaReserva({ pedido, moneda, onCambiarEstado, onEliminar }) {
+  const puedeEliminar = pedido.estado === "entregado" || pedido.estado === "devuelto" || pedido.estado === "cancelado";
+  return /* @__PURE__ */ React.createElement("article", { className: "admin-order admin-card" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("span", { className: `order-chip ${pedido.estado}` }, ETIQUETA_ESTADO[pedido.estado] || pedido.estado), /* @__PURE__ */ React.createElement("h3", null, pedido.cliente_nombre), pedido.dias > 1 ? /* @__PURE__ */ React.createElement("p", null, pedido.id, " · Reserva anterior: ", fechaLargaPanel(pedido.fecha_inicio), " al ", fechaLargaPanel(pedido.fecha_fin), " · ", pedido.dias, " días") : /* @__PURE__ */ React.createElement("p", null, pedido.id, " · Evento: ", fechaLargaPanel(pedido.fecha_evento || pedido.fecha_inicio)), pedido.dias <= 1 && /* @__PURE__ */ React.createElement("p", null, "Recoge el ", fechaLargaPanel(pedido.fecha_inicio), " después de las 5:00 PM"), pedido.cliente_telefono && /* @__PURE__ */ React.createElement("p", null, "📞 ", /* @__PURE__ */ React.createElement("a", { href: `tel:${pedido.cliente_telefono}` }, pedido.cliente_telefono)), pedido.notas && /* @__PURE__ */ React.createElement("p", null, "📝 ", pedido.notas)), /* @__PURE__ */ React.createElement("ul", null, (pedido.alquiler_pedido_items || []).map((item) => /* @__PURE__ */ React.createElement("li", { key: item.id }, item.cantidad, " × ", item.producto_nombre))), /* @__PURE__ */ React.createElement("div", { className: "order-importes" }, /* @__PURE__ */ React.createElement("strong", null, dineroPanel(pedido.total), " ", moneda), Number(pedido.anticipo) > 0 && /* @__PURE__ */ React.createElement("small", null, "Anticipo: ", dineroPanel(pedido.anticipo), " ", moneda)), /* @__PURE__ */ React.createElement("div", null, pedido.estado === "pendiente" && /* @__PURE__ */ React.createElement("button", { onClick: () => onCambiarEstado(pedido, "confirmado") }, "Confirmar"), pedido.estado === "confirmado" && /* @__PURE__ */ React.createElement("button", { onClick: () => onCambiarEstado(pedido, "entregado") }, "Entregada"), pedido.estado === "entregado" && /* @__PURE__ */ React.createElement("button", { onClick: () => onCambiarEstado(pedido, "devuelto") }, "Devuelta"), pedido.estado !== "cancelado" && pedido.estado !== "devuelto" && /* @__PURE__ */ React.createElement("button", { className: "danger", onClick: () => onCambiarEstado(pedido, "cancelado") }, "Cancelar"), puedeEliminar && /* @__PURE__ */ React.createElement("button", { className: "danger", onClick: () => onEliminar(pedido) }, "Eliminar")));
+}
 function Panel({ negocioInicial, email }) {
   const [pestana, setPestana] = useState("reservas");
   const [negocio, setNegocio] = useState(negocioInicial);
@@ -93,6 +104,7 @@ function Panel({ negocioInicial, email }) {
   const [productoNuevo, setProductoNuevo] = useState(null);
   const [creandoProducto, setCreandoProducto] = useState(false);
   const [reservaManual, setReservaManual] = useState(null);
+  const [filtroReservas, setFiltroReservas] = useState("todas");
   const [creandoReserva, setCreandoReserva] = useState(false);
   const [galeria, setGaleria] = useState([]);
   const [subiendoFotoGaleria, setSubiendoFotoGaleria] = useState(false);
@@ -114,7 +126,7 @@ function Panel({ negocioInicial, email }) {
   const cargarPedidos = useCallback(async () => {
     try {
       const filas = await window.supaGet(
-        `alquiler_pedidos?negocio_id=eq.${negocio.id}&select=id,cliente_nombre,cliente_telefono,fecha_evento,fecha_inicio,fecha_fin,dias,total,anticipo,estado,notas,creado_en,alquiler_pedido_items(id,producto_nombre,cantidad)&order=creado_en.desc&limit=200`
+        `alquiler_pedidos?negocio_id=eq.${negocio.id}&oculto=eq.false&select=id,cliente_nombre,cliente_telefono,fecha_evento,fecha_inicio,fecha_fin,dias,total,anticipo,estado,notas,creado_en,alquiler_pedido_items(id,producto_nombre,cantidad)&order=creado_en.desc&limit=200`
       );
       setPedidos(filas);
     } catch (e) {
@@ -384,6 +396,28 @@ function Panel({ negocioInicial, email }) {
       notificar("No se pudo actualizar la reserva.");
     }
   }
+  async function eliminarReserva(pedido) {
+    if (!window.confirm("¿Quitar esta reserva de la lista? No se borra del historial de Ocupación.")) return;
+    try {
+      const res = await fetch(
+        `${window.SUPABASE_URL}/rest/v1/alquiler_pedidos?id=eq.${pedido.id}`,
+        {
+          method: "PATCH",
+          headers: window.supaHeaders({ Prefer: "return=minimal" }),
+          body: JSON.stringify({ oculto: true, actualizado_en: (/* @__PURE__ */ new Date()).toISOString() })
+        }
+      );
+      if (res.ok) {
+        setPedidos((actual) => actual.filter((p) => p.id !== pedido.id));
+        notificar("Reserva quitada de la lista.");
+      } else {
+        notificar("No se pudo eliminar la reserva.");
+      }
+    } catch (e) {
+      console.error("[Panel] error eliminando reserva:", e);
+      notificar("No se pudo eliminar la reserva.");
+    }
+  }
   async function salir() {
     await window.AlquilerAuth.salir();
     window.location.replace("admin-login.html");
@@ -528,7 +562,29 @@ function Panel({ negocioInicial, email }) {
       value: reservaManual.notas,
       onChange: (e) => setReservaManual({ ...reservaManual, notas: e.target.value })
     }
-  )), /* @__PURE__ */ React.createElement("div", { className: "producto-form-acciones" }, /* @__PURE__ */ React.createElement("button", { type: "submit", disabled: creandoReserva }, creandoReserva ? "Creando…" : "Crear reserva confirmada"), /* @__PURE__ */ React.createElement("button", { type: "button", className: "apagar", onClick: cancelarReservaManual }, "Cancelar"))), /* @__PURE__ */ React.createElement(TarjetaAvisos, { negocioId: negocio.id }), /* @__PURE__ */ React.createElement("div", { className: "admin-orders" }, !pedidos.length && /* @__PURE__ */ React.createElement("div", { className: "admin-card empty-orders" }, "Todavía no hay solicitudes."), pedidos.map((pedido) => /* @__PURE__ */ React.createElement("article", { className: "admin-order admin-card", key: pedido.id }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("span", { className: `order-chip ${pedido.estado}` }, ETIQUETA_ESTADO[pedido.estado] || pedido.estado), /* @__PURE__ */ React.createElement("h3", null, pedido.cliente_nombre), pedido.dias > 1 ? /* @__PURE__ */ React.createElement("p", null, pedido.id, " · Reserva anterior: ", fechaLargaPanel(pedido.fecha_inicio), " al ", fechaLargaPanel(pedido.fecha_fin), " · ", pedido.dias, " días") : /* @__PURE__ */ React.createElement("p", null, pedido.id, " · Evento: ", fechaLargaPanel(pedido.fecha_evento || pedido.fecha_inicio)), pedido.dias <= 1 && /* @__PURE__ */ React.createElement("p", null, "Recoge el ", fechaLargaPanel(pedido.fecha_inicio), " después de las 5:00 PM"), pedido.cliente_telefono && /* @__PURE__ */ React.createElement("p", null, "📞 ", /* @__PURE__ */ React.createElement("a", { href: `tel:${pedido.cliente_telefono}` }, pedido.cliente_telefono)), pedido.notas && /* @__PURE__ */ React.createElement("p", null, "📝 ", pedido.notas)), /* @__PURE__ */ React.createElement("ul", null, (pedido.alquiler_pedido_items || []).map((item) => /* @__PURE__ */ React.createElement("li", { key: item.id }, item.cantidad, " × ", item.producto_nombre))), /* @__PURE__ */ React.createElement("div", { className: "order-importes" }, /* @__PURE__ */ React.createElement("strong", null, dineroPanel(pedido.total), " ", moneda), Number(pedido.anticipo) > 0 && /* @__PURE__ */ React.createElement("small", null, "Anticipo: ", dineroPanel(pedido.anticipo), " ", moneda)), /* @__PURE__ */ React.createElement("div", null, pedido.estado === "pendiente" && /* @__PURE__ */ React.createElement("button", { onClick: () => cambiarEstado(pedido, "confirmado") }, "Confirmar"), pedido.estado === "confirmado" && /* @__PURE__ */ React.createElement("button", { onClick: () => cambiarEstado(pedido, "entregado") }, "Entregada"), pedido.estado === "entregado" && /* @__PURE__ */ React.createElement("button", { onClick: () => cambiarEstado(pedido, "devuelto") }, "Devuelta"), pedido.estado !== "cancelado" && pedido.estado !== "devuelto" && /* @__PURE__ */ React.createElement("button", { className: "danger", onClick: () => cambiarEstado(pedido, "cancelado") }, "Cancelar")))))), pestana === "productos" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "admin-title" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "Tu inventario"), /* @__PURE__ */ React.createElement("h1", null, "Artículos")), !productoNuevo && /* @__PURE__ */ React.createElement("button", { onClick: abrirFormularioProducto }, "+ Nuevo artículo")), productoNuevo && /* @__PURE__ */ React.createElement("form", { className: "admin-card producto-form", onSubmit: crearProducto }, /* @__PURE__ */ React.createElement("h3", null, "Nuevo artículo"), /* @__PURE__ */ React.createElement("label", null, "Nombre", /* @__PURE__ */ React.createElement(
+  )), /* @__PURE__ */ React.createElement("div", { className: "producto-form-acciones" }, /* @__PURE__ */ React.createElement("button", { type: "submit", disabled: creandoReserva }, creandoReserva ? "Creando…" : "Crear reserva confirmada"), /* @__PURE__ */ React.createElement("button", { type: "button", className: "apagar", onClick: cancelarReservaManual }, "Cancelar"))), /* @__PURE__ */ React.createElement(TarjetaAvisos, { negocioId: negocio.id }), /* @__PURE__ */ React.createElement("div", { className: "reserva-filtros" }, [
+    ["todas", "Todas"],
+    ["pendientes", "Pendientes"],
+    ["completadas", "Completadas"],
+    ["canceladas", "Canceladas"]
+  ].map(([valor, etiqueta]) => /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      key: valor,
+      className: filtroReservas === valor ? "active" : "",
+      onClick: () => setFiltroReservas(valor)
+    },
+    etiqueta
+  ))), /* @__PURE__ */ React.createElement("div", { className: "admin-orders" }, !pedidos.filter((p) => cumpleFiltroReserva(p.estado, filtroReservas)).length && /* @__PURE__ */ React.createElement("div", { className: "admin-card empty-orders" }, pedidos.length ? "Ninguna reserva con ese filtro." : "Todavía no hay solicitudes."), pedidos.filter((p) => cumpleFiltroReserva(p.estado, filtroReservas)).map((pedido) => /* @__PURE__ */ React.createElement(
+    TarjetaReserva,
+    {
+      key: pedido.id,
+      pedido,
+      moneda,
+      onCambiarEstado: cambiarEstado,
+      onEliminar: eliminarReserva
+    }
+  )))), pestana === "productos" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "admin-title" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "Tu inventario"), /* @__PURE__ */ React.createElement("h1", null, "Artículos")), !productoNuevo && /* @__PURE__ */ React.createElement("button", { onClick: abrirFormularioProducto }, "+ Nuevo artículo")), productoNuevo && /* @__PURE__ */ React.createElement("form", { className: "admin-card producto-form", onSubmit: crearProducto }, /* @__PURE__ */ React.createElement("h3", null, "Nuevo artículo"), /* @__PURE__ */ React.createElement("label", null, "Nombre", /* @__PURE__ */ React.createElement(
     "input",
     {
       autoFocus: true,

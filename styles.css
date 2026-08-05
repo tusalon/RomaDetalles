@@ -284,6 +284,9 @@ h1,h2,h3,p { text-wrap: pretty; }
 .order-chip.devuelto { background:var(--cream); color:var(--muted); }
 .order-chip.cancelado { background:var(--ocupado-bg); color:var(--ocupado); }
 .empty-orders { color:var(--muted); padding:50px; text-align:center; }
+.reserva-filtros { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
+.reserva-filtros button { background:white; border:1px solid var(--border); border-radius:999px; cursor:pointer; font-size:12px; font-weight:700; min-height:38px; padding:0 16px; }
+.reserva-filtros button.active { background:var(--burgundy); border-color:var(--burgundy); color:white; }
 
 /* --- Acceso al panel ------------------------------------------------ */
 .login-wrap { align-items:center; display:flex; justify-content:center; min-height:100dvh; padding:24px; }
