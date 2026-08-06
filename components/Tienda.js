@@ -12,7 +12,7 @@
 //
 // Editar este archivo y luego correr `bash scripts/build-jsx.sh`.
 
-const { useEffect, useMemo, useState, useCallback } = React;
+const { useEffect, useMemo, useRef, useState, useCallback } = React;
 
 function dinero(valor) {
     return new Intl.NumberFormat('es', { maximumFractionDigits: 0 }).format(valor || 0);
@@ -86,6 +86,36 @@ function Tienda() {
     const [notas, setNotas] = useState('');
     const [enviando, setEnviando] = useState(false);
     const [aviso, setAviso] = useState('');
+
+    // ---- Tarjetas que "flotan" al hacer scroll -------------------------
+    // Mismo patrón que el resto del ecosistema (HouseofRservasRoma app.js):
+    // IntersectionObserver + reveal una sola vez. revealedIdsRef es la
+    // fuente de verdad (persiste aunque el className de React se
+    // reescriba al cambiar `estado`); revealTick solo fuerza el re-render
+    // cuando algo nuevo entra en pantalla.
+    const cardObserverRef = useRef(null);
+    const revealedIdsRef = useRef(new Set());
+    const [, revealTick] = useState(0);
+
+    useEffect(() => {
+        if (!('IntersectionObserver' in window)) return;
+        cardObserverRef.current = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+                if (entry.isIntersecting) {
+                    revealedIdsRef.current.add(entry.target.dataset.id);
+                    cardObserverRef.current.unobserve(entry.target);
+                    revealTick((n) => n + 1);
+                }
+            });
+        }, { threshold: 0.12, rootMargin: '0px 0px -60px 0px' });
+        return () => cardObserverRef.current && cardObserverRef.current.disconnect();
+    }, []);
+
+    const observarTarjeta = useCallback((id) => (el) => {
+        if (el && cardObserverRef.current && !revealedIdsRef.current.has(id)) {
+            cardObserverRef.current.observe(el);
+        }
+    }, []);
 
     const hayFecha = Boolean(fechaEvento);
     // Ventana real de ocupación: recoge la tarde anterior, entrega la
@@ -419,8 +449,12 @@ function Tienda() {
                                     // El catálogo está "en reposo" hasta que se eligen
                                     // fechas: recién ahí tiene sentido decir libre/reservado.
                                     const estado = !hayFecha ? '' : (agotado ? 'agotado' : 'libre');
+                                    const visible = revealedIdsRef.current.has(String(producto.id));
                                     return (
-                                        <article className={`product-card ${estado}`} key={producto.id}
+                                        <article
+                                            className={`product-card reveal ${visible ? 'is-visible' : ''} ${estado}`}
+                                            key={producto.id} data-id={producto.id}
+                                            ref={observarTarjeta(String(producto.id))}
                                             style={{ '--i': Math.min(i, 10) }}>
                                             <div className="product-image">
                                                 <img src={producto.foto_url || 'images/producto-arco.png'}

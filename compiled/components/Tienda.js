@@ -1,4 +1,4 @@
-const { useEffect, useMemo, useState, useCallback } = React;
+const { useEffect, useMemo, useRef, useState, useCallback } = React;
 function dinero(valor) {
   return new Intl.NumberFormat("es", { maximumFractionDigits: 0 }).format(valor || 0);
 }
@@ -47,6 +47,27 @@ function Tienda() {
   const [notas, setNotas] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [aviso, setAviso] = useState("");
+  const cardObserverRef = useRef(null);
+  const revealedIdsRef = useRef(/* @__PURE__ */ new Set());
+  const [, revealTick] = useState(0);
+  useEffect(() => {
+    if (!("IntersectionObserver" in window)) return;
+    cardObserverRef.current = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          revealedIdsRef.current.add(entry.target.dataset.id);
+          cardObserverRef.current.unobserve(entry.target);
+          revealTick((n) => n + 1);
+        }
+      });
+    }, { threshold: 0.12, rootMargin: "0px 0px -60px 0px" });
+    return () => cardObserverRef.current && cardObserverRef.current.disconnect();
+  }, []);
+  const observarTarjeta = useCallback((id) => (el) => {
+    if (el && cardObserverRef.current && !revealedIdsRef.current.has(id)) {
+      cardObserverRef.current.observe(el);
+    }
+  }, []);
   const hayFecha = Boolean(fechaEvento);
   const inicioRango = hayFecha ? diaAntes(fechaEvento) : "";
   useEffect(() => {
@@ -265,11 +286,14 @@ function Tienda() {
     const disp = disponibleDe(producto);
     const agotado = hayFecha && disp < 1;
     const estado = !hayFecha ? "" : agotado ? "agotado" : "libre";
+    const visible = revealedIdsRef.current.has(String(producto.id));
     return /* @__PURE__ */ React.createElement(
       "article",
       {
-        className: `product-card ${estado}`,
+        className: `product-card reveal ${visible ? "is-visible" : ""} ${estado}`,
         key: producto.id,
+        "data-id": producto.id,
+        ref: observarTarjeta(String(producto.id)),
         style: { "--i": Math.min(i, 10) }
       },
       /* @__PURE__ */ React.createElement("div", { className: "product-image" }, /* @__PURE__ */ React.createElement(
