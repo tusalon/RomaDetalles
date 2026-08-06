@@ -413,14 +413,15 @@ function Tienda() {
                                 </div>
                             )}
                             <div className="product-grid">
-                                {filtrados.map((producto) => {
+                                {filtrados.map((producto, i) => {
                                     const disp = disponibleDe(producto);
                                     const agotado = hayFecha && disp < 1;
                                     // El catálogo está "en reposo" hasta que se eligen
                                     // fechas: recién ahí tiene sentido decir libre/reservado.
                                     const estado = !hayFecha ? '' : (agotado ? 'agotado' : 'libre');
                                     return (
-                                        <article className={`product-card ${estado}`} key={producto.id}>
+                                        <article className={`product-card ${estado}`} key={producto.id}
+                                            style={{ '--i': Math.min(i, 10) }}>
                                             <div className="product-image">
                                                 <img src={producto.foto_url || 'images/producto-arco.png'}
                                                     alt={producto.nombre} loading="lazy" />

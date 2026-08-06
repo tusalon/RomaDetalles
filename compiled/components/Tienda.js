@@ -261,18 +261,27 @@ function Tienda() {
       onClick: () => setCategoria(item)
     },
     item
-  ))), /* @__PURE__ */ React.createElement("div", { className: "product-grid" }, filtrados.map((producto) => {
+  ))), /* @__PURE__ */ React.createElement("div", { className: "product-grid" }, filtrados.map((producto, i) => {
     const disp = disponibleDe(producto);
     const agotado = hayFecha && disp < 1;
     const estado = !hayFecha ? "" : agotado ? "agotado" : "libre";
-    return /* @__PURE__ */ React.createElement("article", { className: `product-card ${estado}`, key: producto.id }, /* @__PURE__ */ React.createElement("div", { className: "product-image" }, /* @__PURE__ */ React.createElement(
-      "img",
+    return /* @__PURE__ */ React.createElement(
+      "article",
       {
-        src: producto.foto_url || "images/producto-arco.png",
-        alt: producto.nombre,
-        loading: "lazy"
-      }
-    ), producto.categoria && /* @__PURE__ */ React.createElement("span", null, producto.categoria), hayFecha && /* @__PURE__ */ React.createElement("b", { className: agotado ? "reserved" : "" }, agotado ? "● Reservado" : `● ${disp} disponible${disp === 1 ? "" : "s"}`)), /* @__PURE__ */ React.createElement("div", { className: "product-body" }, /* @__PURE__ */ React.createElement("div", { className: "product-title" }, /* @__PURE__ */ React.createElement("h3", null, producto.nombre), /* @__PURE__ */ React.createElement("p", null, /* @__PURE__ */ React.createElement("strong", null, dinero(producto.precio_dia), " ", moneda), /* @__PURE__ */ React.createElement("small", null, "por evento"))), /* @__PURE__ */ React.createElement("p", null, producto.descripcion), /* @__PURE__ */ React.createElement("button", { disabled: agotado, onClick: () => agregar(producto) }, hayFecha ? agotado ? "No disponible" : "Agregar al pedido +" : "Elegir fecha")));
+        className: `product-card ${estado}`,
+        key: producto.id,
+        style: { "--i": Math.min(i, 10) }
+      },
+      /* @__PURE__ */ React.createElement("div", { className: "product-image" }, /* @__PURE__ */ React.createElement(
+        "img",
+        {
+          src: producto.foto_url || "images/producto-arco.png",
+          alt: producto.nombre,
+          loading: "lazy"
+        }
+      ), producto.categoria && /* @__PURE__ */ React.createElement("span", null, producto.categoria), hayFecha && /* @__PURE__ */ React.createElement("b", { className: agotado ? "reserved" : "" }, agotado ? "● Reservado" : `● ${disp} disponible${disp === 1 ? "" : "s"}`)),
+      /* @__PURE__ */ React.createElement("div", { className: "product-body" }, /* @__PURE__ */ React.createElement("div", { className: "product-title" }, /* @__PURE__ */ React.createElement("h3", null, producto.nombre), /* @__PURE__ */ React.createElement("p", null, /* @__PURE__ */ React.createElement("strong", null, dinero(producto.precio_dia), " ", moneda), /* @__PURE__ */ React.createElement("small", null, "por evento"))), /* @__PURE__ */ React.createElement("p", null, producto.descripcion), /* @__PURE__ */ React.createElement("button", { disabled: agotado, onClick: () => agregar(producto) }, hayFecha ? agotado ? "No disponible" : "Agregar al pedido +" : "Elegir fecha"))
+    );
   }))))), /* @__PURE__ */ React.createElement("section", { className: "how shell", id: "como" }, /* @__PURE__ */ React.createElement("div", { className: "center-head" }, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "Simple y transparente"), /* @__PURE__ */ React.createElement("h2", null, "Tu decoración lista en tres pasos")), /* @__PURE__ */ React.createElement("div", { className: "steps" }, /* @__PURE__ */ React.createElement("article", null, /* @__PURE__ */ React.createElement("b", null, "01"), /* @__PURE__ */ React.createElement("span", null, "◫"), /* @__PURE__ */ React.createElement("h3", null, "Elige tu fecha"), /* @__PURE__ */ React.createElement("p", null, "Indica el día de tu evento para comprobar cada artículo.")), /* @__PURE__ */ React.createElement("article", null, /* @__PURE__ */ React.createElement("b", null, "02"), /* @__PURE__ */ React.createElement("span", null, "✦"), /* @__PURE__ */ React.createElement("h3", null, "Crea tu combo"), /* @__PURE__ */ React.createElement("p", null, "Combina productos y mira el total al instante.")), /* @__PURE__ */ React.createElement("article", null, /* @__PURE__ */ React.createElement("b", null, "03"), /* @__PURE__ */ React.createElement("span", null, "◉"), /* @__PURE__ */ React.createElement("h3", null, "Confirma por WhatsApp"), /* @__PURE__ */ React.createElement("p", null, "El negocio recibe el pedido completo y confirma.")))), galeria.length > 0 && /* @__PURE__ */ React.createElement("section", { className: "galeria-publica shell", id: "trabajos" }, /* @__PURE__ */ React.createElement("div", { className: "center-head" }, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "Prueba de lo que hacemos"), /* @__PURE__ */ React.createElement("h2", null, "Nuestros trabajos")), /* @__PURE__ */ React.createElement("div", { className: "galeria-publica-grid" }, galeria.map((foto) => /* @__PURE__ */ React.createElement(
     "button",
     {

@@ -129,19 +129,35 @@ h1,h2,h3,p { text-wrap: pretty; }
 .filters button { background:rgba(255,255,255,.75); border:1px solid var(--border); border-radius:999px; cursor:pointer; font-size:12px; font-weight:800; min-height:44px; padding:0 17px; }
 .filters button.active { background:var(--purple); border-color:var(--purple); color:white; }
 .product-grid { display:grid; gap:24px; grid-template-columns:repeat(3,1fr); }
+
+/* Vitrina: las tarjetas entran como si se fueran colocando una a una sobre
+   la mesa (--i lo pone Tienda.js por índice, con tope para catálogos
+   grandes). Solo corre al montar el nodo, así que cambiar de categoría no
+   repite la animación en las tarjetas que ya estaban visibles. */
+@keyframes card-set {
+  from { opacity:0; transform:translateY(16px) scale(.97); }
+  to { opacity:1; transform:translateY(0) scale(1); }
+}
 /* El borde izquierdo es el "despertar" del catálogo: neutro hasta que se
    eligen fechas, y ahí pasa a libre/reservado — la escasez real de un
    alquiler (si alguien más lo tiene ese sábado, no lo tienes tú) hecha
    visible en el propio catálogo en vez de solo en una insignia chica. */
-.product-card { background:white; border:1px solid rgba(104,24,49,.08); border-left:3px solid transparent; border-radius:22px; overflow:hidden; transition:border-color .25s ease,box-shadow .2s ease,transform .2s ease; }
-.product-card:hover { box-shadow:0 16px 38px rgba(76,34,50,.1); transform:translateY(-5px); }
+.product-card { animation:card-set .6s cubic-bezier(.16,1,.3,1) backwards; animation-delay:calc(var(--i,0) * 60ms); background:white; border:1px solid rgba(104,24,49,.08); border-left:3px solid transparent; border-radius:22px; overflow:hidden; transition:border-color .3s ease,box-shadow .35s cubic-bezier(.16,1,.3,1),transform .35s cubic-bezier(.16,1,.3,1); }
+.product-card:hover { box-shadow:0 3px 10px rgba(76,34,50,.1),0 22px 44px rgba(76,34,50,.16); transform:translateY(-8px); }
 .product-card.libre { border-left-color:var(--libre); }
 .product-card.agotado { border-left-color:var(--ocupado); }
 .product-image { aspect-ratio:4/3; background:#f8f5f2; overflow:hidden; position:relative; }
-.product-image img { box-sizing:border-box; height:100%; object-fit:contain; padding:10px; width:100%; }
+.product-image img { box-sizing:border-box; height:100%; object-fit:contain; padding:10px; transition:filter .4s ease,opacity .4s ease,transform .6s cubic-bezier(.16,1,.3,1); width:100%; }
+.product-card:hover .product-image img { transform:scale(1.06); }
+.product-card.agotado .product-image img { filter:grayscale(.45); opacity:.8; }
 .product-image > span,.product-image > b { backdrop-filter:blur(10px); border-radius:999px; font-size:10px; padding:7px 10px; position:absolute; top:13px; }
 .product-image > span { background:rgba(255,250,245,.92); color:var(--burgundy); left:13px; }
 .product-image > b { background:var(--libre-bg); color:var(--libre); right:13px; }
+.product-image > b:not(.reserved) { animation:badge-breathe 2.6s ease-in-out infinite; }
+@keyframes badge-breathe {
+  0%,100% { box-shadow:0 0 0 0 rgba(31,134,84,.35); }
+  50% { box-shadow:0 0 0 5px rgba(31,134,84,0); }
+}
 .product-body { padding:20px; }
 .product-title { align-items:start; display:flex; gap:12px; justify-content:space-between; }
 .product-title h3 { color:var(--burgundy); font-family:var(--serif); font-optical-sizing:auto; font-size:26px; line-height:1; margin:0; }
@@ -385,4 +401,4 @@ h1,h2,h3,p { text-wrap: pretty; }
 @media(max-width:900px){.admin-shell{grid-template-columns:1fr}.admin-nav{border-bottom:1px solid var(--border);border-right:0;flex-direction:row;overflow-x:auto;padding:15px 20px}.admin-nav button,.admin-nav a{flex:0 0 auto}.admin-nav a{margin-top:0}.admin-product{grid-template-columns:100px 1fr}.admin-product>img{height:100px;width:100px}.product-admin-actions{flex-direction:row;grid-column:1/-1}.admin-order{grid-template-columns:1fr 1fr}.settings-form{grid-template-columns:1fr}.settings-form label.wide{grid-column:auto}}
 @media(max-width:560px){.header{height:72px;padding-inline:16px}.brand{font-size:24px}.brand>span{height:33px;width:33px}.cart-trigger{font-size:0;padding-left:10px}.cart-trigger b{font-size:12px}.shell{padding-inline:17px}.hero{padding-top:42px}.hero h1{font-size:44px}.hero-check{padding:16px}.hero-buttons{align-items:stretch;flex-direction:column}.hero-visual,.hero-visual>img{min-height:280px;height:280px}.hero-visual>img{border-radius:21px}.dates{grid-template-columns:1fr}.section-head h2,.center-head h2{font-size:44px}.filters{flex-wrap:nowrap;margin-inline:-17px;overflow-x:auto;padding-inline:17px}.filters button{flex:0 0 auto}.product-grid{grid-template-columns:1fr}.drawer{width:100%}}
 @media(max-width:560px){.admin-header{align-items:flex-start;gap:15px}.admin-header .brand{font-size:22px}.admin-user{font-size:10px}.admin-content{padding-inline:15px}.admin-title{align-items:flex-start;flex-direction:column;gap:15px}.admin-title h1{font-size:24px}.admin-product{grid-template-columns:1fr}.admin-product>img{height:200px;width:100%}.product-fields>div{grid-template-columns:1fr}.admin-order{grid-template-columns:1fr}.product-admin-actions{flex-wrap:wrap}.producto-form{padding:16px}.producto-form-fila{grid-template-columns:1fr}}
-@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;scroll-behavior:auto!important;transition:none!important}}
