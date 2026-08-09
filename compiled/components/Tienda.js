@@ -414,18 +414,6 @@ function descargarICS(reserva) {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
-function mensajeErrorEdicion(error) {
-  const texto = String(error?.message || error || "");
-  if (texto.includes("SIN_STOCK")) {
-    const nombre = texto.split("SIN_STOCK:")[1]?.split("\n")[0]?.trim();
-    return nombre ? `Ese día ya no queda ${nombre} disponible. Prueba con otra fecha.` : "Ese día ya no queda disponible todo lo que reservaste. Prueba con otra fecha.";
-  }
-  if (texto.includes("RESERVA_NO_EDITABLE")) return "Esta reserva ya no se puede cambiar. Escríbenos y lo vemos.";
-  if (texto.includes("FECHA_PASADA")) return "Elige un día que todavía no haya pasado.";
-  if (texto.includes("PERIODO_INVALIDO")) return "Elige el día de tu evento.";
-  console.error("[MiReserva] error al guardar:", texto);
-  return "No se pudo guardar el cambio. Revisa tu conexión e inténtalo otra vez.";
-}
 function MiReserva({ token }) {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
@@ -503,20 +491,30 @@ function MiReserva({ token }) {
     setGuardando(true);
     setAvisoEdicion("");
     try {
-      await window.supaRpc("alquiler_editar_pedido", {
-        p_pedido: reserva.pedido_id,
-        p_nombre: null,
-        p_telefono: edicion.cliente_telefono.trim(),
-        p_notas: edicion.notas.trim(),
-        p_evento: edicion.fecha_evento,
-        p_items: null,
-        p_token: token
-      });
+      const res = await fetch(
+        `${window.SUPABASE_URL}/functions/v1/${window.ALQUILER_FUNCION_EDITAR}`,
+        {
+          method: "POST",
+          headers: window.supaHeaders(),
+          body: JSON.stringify({
+            token,
+            fecha_evento: edicion.fecha_evento,
+            cliente_telefono: edicion.cliente_telefono.trim(),
+            notas: edicion.notas.trim()
+          })
+        }
+      );
+      const datos = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setAvisoEdicion(datos.error || "No se pudo guardar el cambio. Inténtalo otra vez.");
+        return;
+      }
       await cargar();
       setEdicion(null);
       setAvisoEdicion("Listo. El negocio va a revisar el cambio y te confirma.");
     } catch (e) {
-      setAvisoEdicion(mensajeErrorEdicion(e));
+      console.error("[MiReserva] error al guardar:", e);
+      setAvisoEdicion("No se pudo guardar el cambio. Revisa tu conexión e inténtalo otra vez.");
     } finally {
       setGuardando(false);
     }

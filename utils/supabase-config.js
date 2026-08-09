@@ -25,6 +25,11 @@ window.ALQUILER_SLUG_POR_DEFECTO = 'roma-detalles';
 // directo: la anon key no tiene permiso, a propósito.
 window.ALQUILER_FUNCION_PEDIDO = 'crear-pedido-alquiler';
 
+// Edge Function que aplica los cambios que hace la clienta desde su
+// enlace. Pasa por aquí y no por el RPC directo para que el aviso al
+// dueño salga del servidor: `enviar-web-push` no se expone a la anon key.
+window.ALQUILER_FUNCION_EDITAR = 'editar-pedido-alquiler';
+
 /**
  * Cabeceras para hablar con la API REST de Supabase como visitante anónimo.
  * Si hay sesión de Supabase Auth (panel del dueño), usa su token en vez de

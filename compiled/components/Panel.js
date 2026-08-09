@@ -32,7 +32,7 @@ function armarMensajeConfirmacion(plantilla, pedido, moneda) {
 function mensajeDeErrorReserva(error) {
   const texto = String(error?.message || error || "");
   if (texto.includes("SIN_STOCK")) {
-    const nombre = texto.split("SIN_STOCK:")[1]?.split("\n")[0]?.trim();
+    const nombre = texto.match(/SIN_STOCK:([^"\\]*)/)?.[1]?.trim();
     return nombre ? `${nombre} no tiene stock suficiente ese día.` : "No hay stock suficiente ese día.";
   }
   if (texto.includes("PERIODO_INVALIDO")) return "Ese día no es válido.";

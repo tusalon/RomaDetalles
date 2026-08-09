@@ -58,7 +58,10 @@ const fechaLarga = (iso: string) =>
  */
 function mensajeDeError(raw: string): { mensaje: string; status: number } {
   if (raw.includes("SIN_STOCK")) {
-    const nombre = raw.split("SIN_STOCK:")[1]?.split("\n")[0]?.trim();
+    // PostgREST manda el error como JSON de una sola línea, así que cortar
+    // por salto de línea no separa nada y el nombre saldría con el `"}` del
+    // JSON pegado detrás. Se corta en la comilla que cierra el mensaje.
+    const nombre = raw.match(/SIN_STOCK:([^"\\]*)/)?.[1]?.trim();
     return {
       mensaje: nombre
         ? `${nombre} ya no está disponible ese día. Prueba con otra fecha o quítalo del pedido.`

@@ -706,24 +706,6 @@ function descargarICS(reserva) {
     URL.revokeObjectURL(url);
 }
 
-// Los mismos errores que levanta alquiler_editar_pedido, dichos para la
-// clienta: ella no puede "no tener permiso", solo puede haber llegado
-// tarde o haber elegido un día que ya no alcanza.
-function mensajeErrorEdicion(error) {
-    const texto = String(error?.message || error || '');
-    if (texto.includes('SIN_STOCK')) {
-        const nombre = texto.split('SIN_STOCK:')[1]?.split('\n')[0]?.trim();
-        return nombre
-            ? `Ese día ya no queda ${nombre} disponible. Prueba con otra fecha.`
-            : 'Ese día ya no queda disponible todo lo que reservaste. Prueba con otra fecha.';
-    }
-    if (texto.includes('RESERVA_NO_EDITABLE')) return 'Esta reserva ya no se puede cambiar. Escríbenos y lo vemos.';
-    if (texto.includes('FECHA_PASADA')) return 'Elige un día que todavía no haya pasado.';
-    if (texto.includes('PERIODO_INVALIDO')) return 'Elige el día de tu evento.';
-    console.error('[MiReserva] error al guardar:', texto);
-    return 'No se pudo guardar el cambio. Revisa tu conexión e inténtalo otra vez.';
-}
-
 function MiReserva({ token }) {
     const [cargando, setCargando] = useState(true);
     const [error, setError] = useState('');
@@ -825,23 +807,35 @@ function MiReserva({ token }) {
         setGuardando(true);
         setAvisoEdicion('');
         try {
-            // p_items va en null a propósito: desde aquí no se cambian los
-            // artículos, pero el servidor igual revisa que en el día nuevo
-            // alcance el stock de los que ya tienes.
-            await window.supaRpc('alquiler_editar_pedido', {
-                p_pedido: reserva.pedido_id,
-                p_nombre: null,
-                p_telefono: edicion.cliente_telefono.trim(),
-                p_notas: edicion.notas.trim(),
-                p_evento: edicion.fecha_evento,
-                p_items: null,
-                p_token: token
-            });
+            // Vía Edge Function, no RPC directo: ahí es donde se dispara el
+            // aviso al dueño. Los artículos no se tocan desde aquí, pero el
+            // servidor igual revisa que el día nuevo alcance el stock.
+            const res = await fetch(
+                `${window.SUPABASE_URL}/functions/v1/${window.ALQUILER_FUNCION_EDITAR}`,
+                {
+                    method: 'POST',
+                    headers: window.supaHeaders(),
+                    body: JSON.stringify({
+                        token,
+                        fecha_evento: edicion.fecha_evento,
+                        cliente_telefono: edicion.cliente_telefono.trim(),
+                        notas: edicion.notas.trim()
+                    })
+                }
+            );
+            const datos = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                setAvisoEdicion(datos.error || 'No se pudo guardar el cambio. Inténtalo otra vez.');
+                return;
+            }
             await cargar();
             setEdicion(null);
             setAvisoEdicion('Listo. El negocio va a revisar el cambio y te confirma.');
         } catch (e) {
-            setAvisoEdicion(mensajeErrorEdicion(e));
+            // La Edge Function ya devuelve los errores de negocio en
+            // castellano; aquí solo cae que no hubo respuesta.
+            console.error('[MiReserva] error al guardar:', e);
+            setAvisoEdicion('No se pudo guardar el cambio. Revisa tu conexión e inténtalo otra vez.');
         } finally {
             setGuardando(false);
         }
