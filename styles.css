@@ -245,6 +245,12 @@ h1,h2,h3,p { text-wrap: pretty; }
 .mis-reservas-otras { border-top:1px solid var(--border); display:grid; gap:6px; margin-top:18px; padding-top:14px; }
 .mis-reservas-otras small { color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:.06em; }
 .mis-reservas-otras a { color:var(--purple); font-size:13px; text-decoration:underline; text-underline-offset:3px; }
+.mi-reserva-form { display:grid; gap:14px; margin-top:20px; }
+.mi-reserva-form label { color:var(--muted); display:grid; font-size:11px; gap:6px; letter-spacing:.06em; text-transform:uppercase; }
+.mi-reserva-form input,.mi-reserva-form textarea { background:var(--paper); border:1px solid var(--border); border-radius:10px; color:var(--ink); font-size:15px; letter-spacing:normal; min-height:44px; padding:11px 13px; text-transform:none; width:100%; }
+.mi-reserva-form textarea { min-height:72px; resize:vertical; }
+.mi-reserva-nota { color:var(--muted); font-size:12px; margin:0; }
+.mi-reserva-aviso { background:var(--lilac); border-radius:10px; color:var(--burgundy); font-size:13px; margin-top:16px; padding:11px 13px; }
 .checkout { display:grid; gap:10px; margin-top:22px; }
 .checkout input,.checkout textarea { border:1px solid var(--border); border-radius:9px; min-height:44px; padding:10px 12px; }
 .checkout textarea { min-height:75px; resize:vertical; }

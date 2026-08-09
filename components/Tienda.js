@@ -706,31 +706,57 @@ function descargarICS(reserva) {
     URL.revokeObjectURL(url);
 }
 
+// Los mismos errores que levanta alquiler_editar_pedido, dichos para la
+// clienta: ella no puede "no tener permiso", solo puede haber llegado
+// tarde o haber elegido un día que ya no alcanza.
+function mensajeErrorEdicion(error) {
+    const texto = String(error?.message || error || '');
+    if (texto.includes('SIN_STOCK')) {
+        const nombre = texto.split('SIN_STOCK:')[1]?.split('\n')[0]?.trim();
+        return nombre
+            ? `Ese día ya no queda ${nombre} disponible. Prueba con otra fecha.`
+            : 'Ese día ya no queda disponible todo lo que reservaste. Prueba con otra fecha.';
+    }
+    if (texto.includes('RESERVA_NO_EDITABLE')) return 'Esta reserva ya no se puede cambiar. Escríbenos y lo vemos.';
+    if (texto.includes('FECHA_PASADA')) return 'Elige un día que todavía no haya pasado.';
+    if (texto.includes('PERIODO_INVALIDO')) return 'Elige el día de tu evento.';
+    console.error('[MiReserva] error al guardar:', texto);
+    return 'No se pudo guardar el cambio. Revisa tu conexión e inténtalo otra vez.';
+}
+
 function MiReserva({ token }) {
     const [cargando, setCargando] = useState(true);
     const [error, setError] = useState('');
     const [reserva, setReserva] = useState(null);
     const [otrasGuardadas, setOtrasGuardadas] = useState([]);
+    const [edicion, setEdicion] = useState(null);
+    const [guardando, setGuardando] = useState(false);
+    const [avisoEdicion, setAvisoEdicion] = useState('');
+
+    const cargar = useCallback(async () => {
+        const filas = await window.supaRpc('alquiler_pedido_por_token', { p_token: token });
+        if (!filas.length) throw new Error('SIN_RESERVA');
+        setReserva(filas[0]);
+        return filas[0];
+    }, [token]);
 
     useEffect(() => {
         (async () => {
             try {
-                const filas = await window.supaRpc('alquiler_pedido_por_token', { p_token: token });
-                if (!filas.length) {
-                    setError('No encontramos esta reserva. Revisa el enlace.');
-                    setCargando(false);
-                    return;
-                }
-                setReserva(filas[0]);
+                await cargar();
                 guardarReservaLocal(token);
             } catch (e) {
-                console.error('[MiReserva] error cargando:', e);
-                setError('No se pudo cargar tu reserva. Revisa tu conexión.');
+                if (String(e.message) === 'SIN_RESERVA') {
+                    setError('No encontramos esta reserva. Revisa el enlace.');
+                } else {
+                    console.error('[MiReserva] error cargando:', e);
+                    setError('No se pudo cargar tu reserva. Revisa tu conexión.');
+                }
             } finally {
                 setCargando(false);
             }
         })();
-    }, [token]);
+    }, [token, cargar]);
 
     // Otras reservas guardadas en este teléfono, para el enlace "Ver
     // mis otras reservas" — se resuelven en paralelo, cada una con su
@@ -778,6 +804,49 @@ function MiReserva({ token }) {
         window.open(`https://wa.me/${numero}?text=${encodeURIComponent(mensaje)}`, '_blank');
     }
 
+    // Entregada o devuelta ya no se cambia: eso se habla con el negocio.
+    const puedeEditar = reserva.estado === 'pendiente' || reserva.estado === 'confirmado';
+
+    function abrirEdicion() {
+        setAvisoEdicion('');
+        setEdicion({
+            fecha_evento: reserva.fecha_evento || '',
+            cliente_telefono: reserva.cliente_telefono || '',
+            notas: reserva.notas || ''
+        });
+    }
+
+    async function guardarEdicion(evento) {
+        evento.preventDefault();
+        if (!edicion.fecha_evento) {
+            setAvisoEdicion('Elige el día de tu evento.');
+            return;
+        }
+        setGuardando(true);
+        setAvisoEdicion('');
+        try {
+            // p_items va en null a propósito: desde aquí no se cambian los
+            // artículos, pero el servidor igual revisa que en el día nuevo
+            // alcance el stock de los que ya tienes.
+            await window.supaRpc('alquiler_editar_pedido', {
+                p_pedido: reserva.pedido_id,
+                p_nombre: null,
+                p_telefono: edicion.cliente_telefono.trim(),
+                p_notas: edicion.notas.trim(),
+                p_evento: edicion.fecha_evento,
+                p_items: null,
+                p_token: token
+            });
+            await cargar();
+            setEdicion(null);
+            setAvisoEdicion('Listo. El negocio va a revisar el cambio y te confirma.');
+        } catch (e) {
+            setAvisoEdicion(mensajeErrorEdicion(e));
+        } finally {
+            setGuardando(false);
+        }
+    }
+
     return (
         <main>
             <header className="header">
@@ -801,14 +870,49 @@ function MiReserva({ token }) {
                     {Number(reserva.anticipo) > 0 && (
                         <p>Anticipo: {dinero(reserva.anticipo)} {moneda}</p>
                     )}
-                    <div style={{ display: 'grid', gap: '10px', marginTop: '20px' }}>
-                        <button className="primary" onClick={() => descargarICS(reserva)}>
-                            Agregar a mi calendario
-                        </button>
-                        <button className="secondary" onClick={solicitarCambio}>
-                            Solicitar un cambio
-                        </button>
-                    </div>
+                    {edicion ? (
+                        <form className="mi-reserva-form" onSubmit={guardarEdicion}>
+                            <label>Día del evento
+                                <input type="date" required min={mananaISO()}
+                                    value={edicion.fecha_evento}
+                                    onChange={(e) => setEdicion({ ...edicion, fecha_evento: e.target.value })} />
+                            </label>
+                            <label>Tu teléfono
+                                <input inputMode="tel" value={edicion.cliente_telefono}
+                                    onChange={(e) => setEdicion({ ...edicion, cliente_telefono: e.target.value })} />
+                            </label>
+                            <label>Nota para el negocio
+                                <textarea rows="3" value={edicion.notas}
+                                    onChange={(e) => setEdicion({ ...edicion, notas: e.target.value })} />
+                            </label>
+                            <p className="mi-reserva-nota">
+                                Para cambiar los artículos, escríbenos por WhatsApp.
+                            </p>
+                            <div style={{ display: 'grid', gap: '10px' }}>
+                                <button className="primary" type="submit" disabled={guardando}>
+                                    {guardando ? 'Guardando…' : 'Guardar cambios'}
+                                </button>
+                                <button className="secondary" type="button" onClick={() => setEdicion(null)}>
+                                    Cancelar
+                                </button>
+                            </div>
+                        </form>
+                    ) : (
+                        <div style={{ display: 'grid', gap: '10px', marginTop: '20px' }}>
+                            <button className="primary" onClick={() => descargarICS(reserva)}>
+                                Agregar a mi calendario
+                            </button>
+                            {puedeEditar && (
+                                <button className="secondary" onClick={abrirEdicion}>
+                                    Editar mi reserva
+                                </button>
+                            )}
+                            <button className="secondary" onClick={solicitarCambio}>
+                                Escribir al negocio
+                            </button>
+                        </div>
+                    )}
+                    {avisoEdicion && <p className="mi-reserva-aviso">{avisoEdicion}</p>}
                     {otrasGuardadas.length > 0 && (
                         <div className="mis-reservas-otras">
                             <small>Tus otras reservas guardadas:</small>

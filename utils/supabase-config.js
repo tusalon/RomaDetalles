@@ -56,7 +56,12 @@ window.supaRpc = async function (nombre, args) {
         body: JSON.stringify(args || {})
     });
     if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
-    return res.json();
+    // Una función que devuelve void contesta con el cuerpo vacío, y ahí
+    // res.json() lanza "Unexpected end of JSON input": el RPC funcionó
+    // pero la app lo vería como error. No tener nada que devolver no es
+    // un fallo.
+    const texto = await res.text();
+    return texto ? JSON.parse(texto) : null;
 };
 
 console.log('✅ Configuración de RomaDetalles cargada');

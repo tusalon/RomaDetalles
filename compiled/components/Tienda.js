@@ -414,30 +414,49 @@ function descargarICS(reserva) {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+function mensajeErrorEdicion(error) {
+  const texto = String(error?.message || error || "");
+  if (texto.includes("SIN_STOCK")) {
+    const nombre = texto.split("SIN_STOCK:")[1]?.split("\n")[0]?.trim();
+    return nombre ? `Ese día ya no queda ${nombre} disponible. Prueba con otra fecha.` : "Ese día ya no queda disponible todo lo que reservaste. Prueba con otra fecha.";
+  }
+  if (texto.includes("RESERVA_NO_EDITABLE")) return "Esta reserva ya no se puede cambiar. Escríbenos y lo vemos.";
+  if (texto.includes("FECHA_PASADA")) return "Elige un día que todavía no haya pasado.";
+  if (texto.includes("PERIODO_INVALIDO")) return "Elige el día de tu evento.";
+  console.error("[MiReserva] error al guardar:", texto);
+  return "No se pudo guardar el cambio. Revisa tu conexión e inténtalo otra vez.";
+}
 function MiReserva({ token }) {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [reserva, setReserva] = useState(null);
   const [otrasGuardadas, setOtrasGuardadas] = useState([]);
+  const [edicion, setEdicion] = useState(null);
+  const [guardando, setGuardando] = useState(false);
+  const [avisoEdicion, setAvisoEdicion] = useState("");
+  const cargar = useCallback(async () => {
+    const filas = await window.supaRpc("alquiler_pedido_por_token", { p_token: token });
+    if (!filas.length) throw new Error("SIN_RESERVA");
+    setReserva(filas[0]);
+    return filas[0];
+  }, [token]);
   useEffect(() => {
     (async () => {
       try {
-        const filas = await window.supaRpc("alquiler_pedido_por_token", { p_token: token });
-        if (!filas.length) {
-          setError("No encontramos esta reserva. Revisa el enlace.");
-          setCargando(false);
-          return;
-        }
-        setReserva(filas[0]);
+        await cargar();
         guardarReservaLocal(token);
       } catch (e) {
-        console.error("[MiReserva] error cargando:", e);
-        setError("No se pudo cargar tu reserva. Revisa tu conexión.");
+        if (String(e.message) === "SIN_RESERVA") {
+          setError("No encontramos esta reserva. Revisa el enlace.");
+        } else {
+          console.error("[MiReserva] error cargando:", e);
+          setError("No se pudo cargar tu reserva. Revisa tu conexión.");
+        }
       } finally {
         setCargando(false);
       }
     })();
-  }, [token]);
+  }, [token, cargar]);
   useEffect(() => {
     const tokens = tokensGuardados().filter((t) => t !== token);
     if (!tokens.length) return;
@@ -466,6 +485,65 @@ function MiReserva({ token }) {
     const mensaje = `Hola, quiero pedir un cambio en mi reserva del ${fechaLarga(reserva.fecha_evento)}.`;
     window.open(`https://wa.me/${numero}?text=${encodeURIComponent(mensaje)}`, "_blank");
   }
-  return /* @__PURE__ */ React.createElement("main", null, /* @__PURE__ */ React.createElement("header", { className: "header" }, /* @__PURE__ */ React.createElement("a", { className: "brand", href: "#" }, /* @__PURE__ */ React.createElement("span", null, "✦"), " ", reserva.negocio_nombre)), /* @__PURE__ */ React.createElement("section", { className: "shell", style: { paddingBlock: "60px" } }, /* @__PURE__ */ React.createElement("div", { className: "admin-card", style: { margin: "0 auto", maxWidth: "480px", padding: "28px" } }, /* @__PURE__ */ React.createElement("span", { className: `order-chip ${reserva.estado}` }, etiqueta), /* @__PURE__ */ React.createElement("h1", { style: { color: "var(--burgundy)", fontFamily: "var(--serif)", margin: "14px 0 4px" } }, fechaLarga(reserva.fecha_evento)), /* @__PURE__ */ React.createElement("p", { style: { color: "var(--muted)" } }, "Recoges el ", fechaLarga(reserva.fecha_inicio), " después de las 5:00 PM"), /* @__PURE__ */ React.createElement("ul", null, (reserva.items || []).map((item, i) => /* @__PURE__ */ React.createElement("li", { key: i }, item.cantidad, " × ", item.producto_nombre))), /* @__PURE__ */ React.createElement("p", null, /* @__PURE__ */ React.createElement("strong", null, "Total: ", dinero(reserva.total), " ", moneda)), Number(reserva.anticipo) > 0 && /* @__PURE__ */ React.createElement("p", null, "Anticipo: ", dinero(reserva.anticipo), " ", moneda), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gap: "10px", marginTop: "20px" } }, /* @__PURE__ */ React.createElement("button", { className: "primary", onClick: () => descargarICS(reserva) }, "Agregar a mi calendario"), /* @__PURE__ */ React.createElement("button", { className: "secondary", onClick: solicitarCambio }, "Solicitar un cambio")), otrasGuardadas.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "mis-reservas-otras" }, /* @__PURE__ */ React.createElement("small", null, "Tus otras reservas guardadas:"), otrasGuardadas.map((r) => /* @__PURE__ */ React.createElement("a", { key: r.token, href: `?reserva=${r.token}` }, fechaLarga(r.fecha_evento)))))));
+  const puedeEditar = reserva.estado === "pendiente" || reserva.estado === "confirmado";
+  function abrirEdicion() {
+    setAvisoEdicion("");
+    setEdicion({
+      fecha_evento: reserva.fecha_evento || "",
+      cliente_telefono: reserva.cliente_telefono || "",
+      notas: reserva.notas || ""
+    });
+  }
+  async function guardarEdicion(evento) {
+    evento.preventDefault();
+    if (!edicion.fecha_evento) {
+      setAvisoEdicion("Elige el día de tu evento.");
+      return;
+    }
+    setGuardando(true);
+    setAvisoEdicion("");
+    try {
+      await window.supaRpc("alquiler_editar_pedido", {
+        p_pedido: reserva.pedido_id,
+        p_nombre: null,
+        p_telefono: edicion.cliente_telefono.trim(),
+        p_notas: edicion.notas.trim(),
+        p_evento: edicion.fecha_evento,
+        p_items: null,
+        p_token: token
+      });
+      await cargar();
+      setEdicion(null);
+      setAvisoEdicion("Listo. El negocio va a revisar el cambio y te confirma.");
+    } catch (e) {
+      setAvisoEdicion(mensajeErrorEdicion(e));
+    } finally {
+      setGuardando(false);
+    }
+  }
+  return /* @__PURE__ */ React.createElement("main", null, /* @__PURE__ */ React.createElement("header", { className: "header" }, /* @__PURE__ */ React.createElement("a", { className: "brand", href: "#" }, /* @__PURE__ */ React.createElement("span", null, "✦"), " ", reserva.negocio_nombre)), /* @__PURE__ */ React.createElement("section", { className: "shell", style: { paddingBlock: "60px" } }, /* @__PURE__ */ React.createElement("div", { className: "admin-card", style: { margin: "0 auto", maxWidth: "480px", padding: "28px" } }, /* @__PURE__ */ React.createElement("span", { className: `order-chip ${reserva.estado}` }, etiqueta), /* @__PURE__ */ React.createElement("h1", { style: { color: "var(--burgundy)", fontFamily: "var(--serif)", margin: "14px 0 4px" } }, fechaLarga(reserva.fecha_evento)), /* @__PURE__ */ React.createElement("p", { style: { color: "var(--muted)" } }, "Recoges el ", fechaLarga(reserva.fecha_inicio), " después de las 5:00 PM"), /* @__PURE__ */ React.createElement("ul", null, (reserva.items || []).map((item, i) => /* @__PURE__ */ React.createElement("li", { key: i }, item.cantidad, " × ", item.producto_nombre))), /* @__PURE__ */ React.createElement("p", null, /* @__PURE__ */ React.createElement("strong", null, "Total: ", dinero(reserva.total), " ", moneda)), Number(reserva.anticipo) > 0 && /* @__PURE__ */ React.createElement("p", null, "Anticipo: ", dinero(reserva.anticipo), " ", moneda), edicion ? /* @__PURE__ */ React.createElement("form", { className: "mi-reserva-form", onSubmit: guardarEdicion }, /* @__PURE__ */ React.createElement("label", null, "Día del evento", /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      type: "date",
+      required: true,
+      min: mananaISO(),
+      value: edicion.fecha_evento,
+      onChange: (e) => setEdicion({ ...edicion, fecha_evento: e.target.value })
+    }
+  )), /* @__PURE__ */ React.createElement("label", null, "Tu teléfono", /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      inputMode: "tel",
+      value: edicion.cliente_telefono,
+      onChange: (e) => setEdicion({ ...edicion, cliente_telefono: e.target.value })
+    }
+  )), /* @__PURE__ */ React.createElement("label", null, "Nota para el negocio", /* @__PURE__ */ React.createElement(
+    "textarea",
+    {
+      rows: "3",
+      value: edicion.notas,
+      onChange: (e) => setEdicion({ ...edicion, notas: e.target.value })
+    }
+  )), /* @__PURE__ */ React.createElement("p", { className: "mi-reserva-nota" }, "Para cambiar los artículos, escríbenos por WhatsApp."), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gap: "10px" } }, /* @__PURE__ */ React.createElement("button", { className: "primary", type: "submit", disabled: guardando }, guardando ? "Guardando…" : "Guardar cambios"), /* @__PURE__ */ React.createElement("button", { className: "secondary", type: "button", onClick: () => setEdicion(null) }, "Cancelar"))) : /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gap: "10px", marginTop: "20px" } }, /* @__PURE__ */ React.createElement("button", { className: "primary", onClick: () => descargarICS(reserva) }, "Agregar a mi calendario"), puedeEditar && /* @__PURE__ */ React.createElement("button", { className: "secondary", onClick: abrirEdicion }, "Editar mi reserva"), /* @__PURE__ */ React.createElement("button", { className: "secondary", onClick: solicitarCambio }, "Escribir al negocio")), avisoEdicion && /* @__PURE__ */ React.createElement("p", { className: "mi-reserva-aviso" }, avisoEdicion), otrasGuardadas.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "mis-reservas-otras" }, /* @__PURE__ */ React.createElement("small", null, "Tus otras reservas guardadas:"), otrasGuardadas.map((r) => /* @__PURE__ */ React.createElement("a", { key: r.token, href: `?reserva=${r.token}` }, fechaLarga(r.fecha_evento)))))));
 }
 window.MiReserva = MiReserva;

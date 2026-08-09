@@ -98,8 +98,11 @@ function mensajeDeErrorReserva(error) {
     if (texto.includes('PEDIDO_VACIO')) return 'Elige al menos un artículo.';
     if (texto.includes('PRODUCTO_NO_EXISTE')) return 'Uno de los artículos ya no existe.';
     if (texto.includes('NO_AUTORIZADO')) return 'No tienes permiso para crear reservas en este negocio.';
+    if (texto.includes('RESERVA_NO_EDITABLE')) return 'Esta reserva ya no se puede editar. Cancélala y haz otra.';
+    if (texto.includes('FECHA_PASADA')) return 'No puedes mover la reserva a un día que ya pasó.';
+    if (texto.includes('PEDIDO_NO_EXISTE')) return 'Esa reserva ya no existe.';
     console.error('[Panel] error de reserva no reconocido:', texto);
-    return 'No se pudo crear la reserva. Inténtalo de nuevo.';
+    return 'No se pudo guardar la reserva. Inténtalo de nuevo.';
 }
 
 function cumpleFiltroReserva(estado, filtro) {
@@ -219,9 +222,11 @@ function TarjetaAvisos({ negocioId }) {
 // ---------------------------------------------------------------------
 // Tarjeta de una reserva — la usan tanto la Lista como el Calendario
 // ---------------------------------------------------------------------
-function TarjetaReserva({ pedido, moneda, onCambiarEstado, onEliminar }) {
+function TarjetaReserva({ pedido, moneda, onCambiarEstado, onEliminar, onEditar }) {
     const puedeEliminar =
         pedido.estado === 'entregado' || pedido.estado === 'devuelto' || pedido.estado === 'cancelado';
+    // Una vez entregada o devuelta, editar ya no describiría lo que pasó.
+    const puedeEditar = pedido.estado === 'pendiente' || pedido.estado === 'confirmado';
 
     return (
         <article className="admin-order admin-card">
@@ -261,6 +266,9 @@ function TarjetaReserva({ pedido, moneda, onCambiarEstado, onEliminar }) {
                 )}
                 {pedido.estado === 'entregado' && (
                     <button onClick={() => onCambiarEstado(pedido, 'devuelto')}>Devuelta</button>
+                )}
+                {puedeEditar && (
+                    <button className="secondary" onClick={() => onEditar(pedido)}>Editar</button>
                 )}
                 {pedido.estado !== 'cancelado' && pedido.estado !== 'devuelto' && (
                     <button className="danger" onClick={() => onCambiarEstado(pedido, 'cancelado')}>Cancelar</button>
@@ -327,7 +335,7 @@ function Panel({ negocioInicial, email }) {
             const filas = await window.supaGet(
                 `alquiler_pedidos?negocio_id=eq.${negocio.id}&oculto=eq.false` +
                 `&select=id,cliente_nombre,cliente_telefono,fecha_evento,fecha_inicio,fecha_fin,dias,total,anticipo,estado,notas,creado_en,` +
-                `alquiler_pedido_items(id,producto_nombre,cantidad)` +
+                `alquiler_pedido_items(id,producto_id,producto_nombre,cantidad)` +
                 `&order=creado_en.desc&limit=200`
             );
             setPedidos(filas);
@@ -346,7 +354,7 @@ function Panel({ negocioInicial, email }) {
                 `alquiler_pedidos?negocio_id=eq.${negocio.id}&oculto=eq.false` +
                 `&fecha_evento=gte.${desde}&fecha_evento=lte.${hasta}` +
                 `&select=id,cliente_nombre,cliente_telefono,fecha_evento,fecha_inicio,fecha_fin,dias,total,anticipo,estado,notas,creado_en,` +
-                `alquiler_pedido_items(id,producto_nombre,cantidad)` +
+                `alquiler_pedido_items(id,producto_id,producto_nombre,cantidad)` +
                 `&order=fecha_evento.asc`
             );
             setPedidosMes(filas);
@@ -717,9 +725,27 @@ function Panel({ negocioInicial, email }) {
         window.open(`https://wa.me/?text=${encodeURIComponent(mensaje)}`, '_blank');
     }
 
-    // ---- Reserva manual (clienta sin internet) -------------------------
+    // ---- Reserva manual (clienta sin internet) y edición ---------------
+    // El mismo formulario sirve para las dos cosas: si trae `id`, está
+    // editando una reserva que ya existe; si no, está creando una nueva.
     function abrirReservaManual() {
         setReservaManual({ cliente_nombre: '', cliente_telefono: '', notas: '', fecha_evento: '', items: {} });
+    }
+
+    function abrirEdicionReserva(pedido) {
+        const items = {};
+        (pedido.alquiler_pedido_items || []).forEach((item) => {
+            if (item.producto_id) items[item.producto_id] = item.cantidad;
+        });
+        setReservaManual({
+            id: pedido.id,
+            cliente_nombre: pedido.cliente_nombre || '',
+            cliente_telefono: pedido.cliente_telefono || '',
+            notas: pedido.notas || '',
+            fecha_evento: pedido.fecha_evento || pedido.fecha_inicio || '',
+            items
+        });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
     function cancelarReservaManual() {
@@ -735,7 +761,7 @@ function Panel({ negocioInicial, email }) {
         });
     }
 
-    async function crearReservaManual(evento) {
+    async function guardarReserva(evento) {
         evento.preventDefault();
         if (!reservaManual.cliente_nombre.trim()) {
             notificar('Ponle un nombre a la clienta.');
@@ -750,20 +776,36 @@ function Panel({ negocioInicial, email }) {
             notificar('Elige al menos un artículo.');
             return;
         }
+        const editando = Boolean(reservaManual.id);
 
         setCreandoReserva(true);
         try {
-            const pedido = await window.supaRpc('alquiler_crear_pedido_manual', {
-                p_negocio: negocio.id,
-                p_nombre: reservaManual.cliente_nombre.trim(),
-                p_telefono: reservaManual.cliente_telefono.trim(),
-                p_notas: reservaManual.notas.trim(),
-                p_evento: reservaManual.fecha_evento,
-                p_items: items
-            });
+            if (editando) {
+                await window.supaRpc('alquiler_editar_pedido', {
+                    p_pedido: reservaManual.id,
+                    p_nombre: reservaManual.cliente_nombre.trim(),
+                    p_telefono: reservaManual.cliente_telefono.trim(),
+                    p_notas: reservaManual.notas.trim(),
+                    p_evento: reservaManual.fecha_evento,
+                    p_items: items
+                });
+                notificar(`Reserva ${reservaManual.id} actualizada.`);
+            } else {
+                const pedido = await window.supaRpc('alquiler_crear_pedido_manual', {
+                    p_negocio: negocio.id,
+                    p_nombre: reservaManual.cliente_nombre.trim(),
+                    p_telefono: reservaManual.cliente_telefono.trim(),
+                    p_notas: reservaManual.notas.trim(),
+                    p_evento: reservaManual.fecha_evento,
+                    p_items: items
+                });
+                notificar(`Reserva ${pedido.id} creada y confirmada.`);
+            }
             setReservaManual(null);
-            notificar(`Reserva ${pedido.id} creada y confirmada.`);
+            // El total, el anticipo y las fechas los recalcula Postgres:
+            // se recargan las dos vistas en vez de adivinarlos aquí.
             cargarPedidos();
+            if (vistaReservas === 'calendario') cargarPedidosDelMes();
         } catch (e) {
             notificar(mensajeDeErrorReserva(e));
         } finally {
@@ -833,11 +875,12 @@ function Panel({ negocioInicial, email }) {
                             </div>
 
                             {reservaManual && (
-                                <form className="admin-card producto-form" onSubmit={crearReservaManual}>
-                                    <h3>Reserva manual</h3>
+                                <form className="admin-card producto-form" onSubmit={guardarReserva}>
+                                    <h3>{reservaManual.id ? `Editar reserva ${reservaManual.id}` : 'Reserva manual'}</h3>
                                     <p className="producto-form-nota">
-                                        Para una clienta que acordó todo en persona o por teléfono, sin
-                                        pasar por la tienda. Queda confirmada de una vez.
+                                        {reservaManual.id
+                                            ? 'Corrige lo que haga falta. El total y el anticipo se recalculan solos, y el día nuevo se comprueba contra el stock.'
+                                            : 'Para una clienta que acordó todo en persona o por teléfono, sin pasar por la tienda. Queda confirmada de una vez.'}
                                     </p>
                                     <div className="producto-form-fila">
                                         <label>Nombre de la clienta
@@ -877,7 +920,9 @@ function Panel({ negocioInicial, email }) {
                                     </label>
                                     <div className="producto-form-acciones">
                                         <button type="submit" disabled={creandoReserva}>
-                                            {creandoReserva ? 'Creando…' : 'Crear reserva confirmada'}
+                                            {creandoReserva
+                                                ? 'Guardando…'
+                                                : (reservaManual.id ? 'Guardar cambios' : 'Crear reserva confirmada')}
                                         </button>
                                         <button type="button" className="apagar" onClick={cancelarReservaManual}>
                                             Cancelar
@@ -914,7 +959,8 @@ function Panel({ negocioInicial, email }) {
                                         .filter((p) => cumpleFiltroReserva(p.estado, filtroReservas))
                                         .map((pedido) => (
                                             <TarjetaReserva key={pedido.id} pedido={pedido} moneda={moneda}
-                                                onCambiarEstado={cambiarEstado} onEliminar={eliminarReserva} />
+                                                onCambiarEstado={cambiarEstado} onEliminar={eliminarReserva}
+                                                onEditar={abrirEdicionReserva} />
                                         ))}
                                 </div>
                             ) : (
@@ -955,7 +1001,8 @@ function Panel({ negocioInicial, email }) {
                                                 .filter((p) => p.fecha_evento === diaSeleccionado)
                                                 .map((pedido) => (
                                                     <TarjetaReserva key={pedido.id} pedido={pedido} moneda={moneda}
-                                                        onCambiarEstado={cambiarEstado} onEliminar={eliminarReserva} />
+                                                        onCambiarEstado={cambiarEstado} onEliminar={eliminarReserva}
+                                                        onEditar={abrirEdicionReserva} />
                                                 ))}
                                         </div>
                                     )}
