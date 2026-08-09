@@ -44,8 +44,13 @@
      * podamos rodear. Por eso ahí devolvemos 'instalar_primero'.
      */
     function estadoPush() {
-        if (!soportaPush()) return 'no_soportado';
+        // El iPhone se pregunta ANTES que el soporte general: Safari no
+        // expone Notification ni PushManager fuera de una PWA instalada,
+        // así que soportaPush() daría false y el dueño leería "este
+        // navegador no puede recibir avisos" — un callejón sin salida —
+        // cuando en realidad sí puede, instalando la app.
         if (esIOS() && !esAppInstalada()) return 'instalar_primero';
+        if (!soportaPush()) return 'no_soportado';
         if (Notification.permission === 'denied') return 'bloqueado';
         if (Notification.permission === 'granted') return 'permitido';
         return 'puede_pedirse';
