@@ -34,7 +34,22 @@ jobs:
           java-version: '21'
 
       - name: Instalar dependencias de Capacitor
-        run: npm install --no-save @capacitor/core @capacitor/cli @capacitor/android
+        run: npm install --no-save @capacitor/core @capacitor/cli @capacitor/android @capacitor/push-notifications
+
+      # Los avisos en la APK van por Firebase, y Gradle solo activa el
+      # plugin si encuentra este archivo (si no, lo dice en el log y
+      # compila sin push). El contenido vive en un secreto del repo para
+      # no publicar la configuración de Firebase en el código.
+      - name: Poner google-services.json (si hay secreto)
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+            echo "google-services.json escrito: la APK saldrá con avisos."
+          else
+            echo "::warning::Falta el secreto GOOGLE_SERVICES_JSON — la APK saldrá SIN avisos."
+          fi
 
       - name: Sincronizar el proyecto Android
         run: npx cap sync android

@@ -35,6 +35,141 @@
                (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     }
 
+    // ---- APK (Capacitor) ----------------------------------------------
+    // Dentro de la APK el WebView de Android NO tiene Web Push: no existen
+    // PushManager ni Notification. El aviso llega por Firebase, con el
+    // plugin nativo. La Edge Function compartida ya sabe mandar a estos
+    // tokens: reconoce las filas por subscription.provider === 'fcm'.
+
+    function esAppNativa() {
+        const cap = window.Capacitor;
+        return Boolean(cap && (
+            cap.isNativePlatform?.() ||
+            cap.getPlatform?.() === 'android' ||
+            cap.getPlatform?.() === 'ios'
+        ));
+    }
+
+    function pluginPush() {
+        return window.Capacitor?.Plugins?.PushNotifications || null;
+    }
+
+    function plataformaNativa() {
+        return window.Capacitor?.getPlatform?.() || 'native';
+    }
+
+    /**
+     * El token no lo devuelve register(): llega después por el listener
+     * 'registration'. Se envuelve en una promesa con tope de tiempo para
+     * que la interfaz no quede colgada si Firebase no responde (sin
+     * google-services.json en el APK, por ejemplo, no llega nunca).
+     */
+    function pedirTokenNativo(PushNotifications) {
+        return new Promise((resolve, reject) => {
+            let resuelto = false;
+            const corte = setTimeout(() => {
+                if (!resuelto) {
+                    resuelto = true;
+                    reject(new Error('SIN_TOKEN'));
+                }
+            }, 15000);
+
+            PushNotifications.addListener('registration', (t) => {
+                if (resuelto) return;
+                resuelto = true;
+                clearTimeout(corte);
+                resolve(t?.value || '');
+            });
+            PushNotifications.addListener('registrationError', (e) => {
+                if (resuelto) return;
+                resuelto = true;
+                clearTimeout(corte);
+                reject(new Error(`REGISTRO_FALLO: ${JSON.stringify(e)}`));
+            });
+            PushNotifications.register().catch((e) => {
+                if (resuelto) return;
+                resuelto = true;
+                clearTimeout(corte);
+                reject(e);
+            });
+        });
+    }
+
+    async function activarAvisosNativos(negocioId) {
+        const PushNotifications = pluginPush();
+        if (!PushNotifications) {
+            return {
+                ok: false,
+                motivo: 'apk_sin_plugin',
+                mensaje: 'Esta versión de la app no trae los avisos. Actualiza la app a la última versión.'
+            };
+        }
+
+        let permiso = await PushNotifications.checkPermissions();
+        if (permiso.receive !== 'granted') {
+            permiso = await PushNotifications.requestPermissions();
+        }
+        if (permiso.receive !== 'granted') {
+            return { ok: false, motivo: 'rechazado', mensaje: 'No se activaron los avisos.' };
+        }
+
+        let token;
+        try {
+            token = await pedirTokenNativo(PushNotifications);
+        } catch (e) {
+            console.error('[Push] no se obtuvo el token nativo:', e);
+            return {
+                ok: false,
+                motivo: 'sin_token',
+                mensaje: 'No se pudo registrar este teléfono para los avisos. Revisa tu conexión e inténtalo de nuevo.'
+            };
+        }
+        if (!token) {
+            return { ok: false, motivo: 'sin_token', mensaje: 'No se pudo registrar este teléfono para los avisos.' };
+        }
+
+        const plataforma = plataformaNativa();
+        // Mismo formato que usa rservasroma, que es lo que enviar-web-push
+        // sabe leer: el endpoint identifica la fila y el token va dentro
+        // de `subscription` junto al provider.
+        const guardada = await guardarFilaPush({
+            negocio_id: negocioId,
+            role: 'admin',
+            endpoint: `native:${plataforma}:${token}`,
+            subscription: { provider: 'fcm', token, platform: plataforma },
+            user_agent: navigator.userAgent || plataforma,
+            activo: true,
+            updated_at: new Date().toISOString()
+        });
+        if (!guardada.ok) return guardada;
+
+        localStorage.setItem('romadetallesPushNativo', token);
+        localStorage.setItem('romadetallesPushActivo', 'true');
+        window.dispatchEvent(new CustomEvent('romadetalles-push-cambio'));
+        return { ok: true };
+    }
+
+    async function desactivarAvisosNativos(negocioId) {
+        const token = localStorage.getItem('romadetallesPushNativo');
+        if (token) {
+            const endpoint = `native:${plataformaNativa()}:${token}`;
+            await fetch(
+                `${window.SUPABASE_URL}/rest/v1/${TABLA}` +
+                `?endpoint=eq.${encodeURIComponent(endpoint)}` +
+                `&negocio_id=eq.${negocioId}&role=eq.admin`,
+                {
+                    method: 'PATCH',
+                    headers: window.supaHeaders({ Prefer: 'return=minimal' }),
+                    body: JSON.stringify({ activo: false, updated_at: new Date().toISOString() })
+                }
+            ).catch((e) => console.warn('[Push] no se desactivó la fila nativa:', e));
+        }
+        localStorage.removeItem('romadetallesPushNativo');
+        localStorage.removeItem('romadetallesPushActivo');
+        window.dispatchEvent(new CustomEvent('romadetalles-push-cambio'));
+        return { ok: true };
+    }
+
     /**
      * Qué se le puede ofrecer a este dispositivo, para que la interfaz diga
      * la verdad en vez de mostrar un botón que no va a funcionar.
@@ -44,6 +179,17 @@
      * podamos rodear. Por eso ahí devolvemos 'instalar_primero'.
      */
     function estadoPush() {
+        // La APK va primero que todo: ahí no hay Web Push (el WebView no
+        // trae PushManager) pero sí hay push nativo, así que preguntar por
+        // el soporte web daría 'no_soportado' — un callejón sin salida —
+        // cuando el teléfono sí puede recibir avisos.
+        //
+        // El permiso nativo se consulta en async, y esto es sync, así que
+        // aquí solo se dice "se puede ofrecer el botón"; el permiso de
+        // verdad se pide al pulsarlo.
+        if (esAppNativa()) {
+            return localStorage.getItem('romadetallesPushNativo') ? 'permitido' : 'puede_pedirse';
+        }
         // El iPhone se pregunta ANTES que el soporte general: Safari no
         // expone Notification ni PushManager fuera de una PWA instalada,
         // así que soportaPush() daría false y el dueño leería "este
@@ -82,6 +228,8 @@
         if (!negocioId) {
             return { ok: false, motivo: 'sin_negocio', mensaje: 'No se sabe de qué negocio activar los avisos.' };
         }
+
+        if (esAppNativa()) return activarAvisosNativos(negocioId);
 
         const estado = estadoPush();
 
@@ -142,7 +290,7 @@
     }
 
     async function guardarSuscripcion(negocioId, suscripcion) {
-        const payload = {
+        return guardarFilaPush({
             negocio_id: negocioId,
             role: 'admin',
             endpoint: suscripcion.endpoint,
@@ -150,8 +298,11 @@
             user_agent: navigator.userAgent || '',
             activo: true,
             updated_at: new Date().toISOString()
-        };
+        });
+    }
 
+    /** El insert compartido por las dos vías: web y nativa (APK). */
+    async function guardarFilaPush(payload) {
         const url = `${window.SUPABASE_URL}/rest/v1/${TABLA}?on_conflict=endpoint,negocio_id,role`;
         const res = await fetch(url, {
             method: 'POST',
@@ -183,6 +334,7 @@
 
     /** Desactiva los avisos en este dispositivo. */
     async function desactivarAvisos(negocioId) {
+        if (esAppNativa()) return desactivarAvisosNativos(negocioId);
         try {
             const registro = await navigator.serviceWorker.getRegistration();
             const suscripcion = await registro?.pushManager.getSubscription();
@@ -208,6 +360,9 @@
 
     /** ¿Están activos en ESTE dispositivo? */
     async function avisosActivos() {
+        // En la APK no hay pushManager que consultar: la señal es el token
+        // que se guardó al activar.
+        if (esAppNativa()) return Boolean(localStorage.getItem('romadetallesPushNativo'));
         if (!soportaPush() || Notification.permission !== 'granted') return false;
         try {
             const registro = await navigator.serviceWorker.getRegistration();
@@ -220,6 +375,7 @@
     window.RomaDetallesPush = {
         soportaPush,
         esAppInstalada,
+        esAppNativa,
         esIOS,
         estadoPush,
         activarAvisos,

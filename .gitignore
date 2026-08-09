@@ -41,3 +41,7 @@ next-env.d.ts
 /outputs/
 /work/
 supabase/.temp/
+
+# Configuración de Firebase para la APK: entra por el secreto
+# GOOGLE_SERVICES_JSON del repo, nunca se commitea.
+android/app/google-services.json
