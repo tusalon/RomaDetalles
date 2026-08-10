@@ -46,6 +46,18 @@ jobs:
         run: |
           if [ -n "$GOOGLE_SERVICES_JSON" ]; then
             printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+            # Marca en el User-Agent para que el panel sepa que ESTA APK sí
+            # puede pedirle un token a Firebase. Sin ella, el panel ni lo
+            # intenta: llamar a register() sin google-services.json revienta
+            # la app de forma nativa, y eso no hay try/catch de JS que lo
+            # atrape. La marca se pone aquí, no en el config del repo, para
+            # que solo la lleven los builds que de verdad traen Firebase.
+            node -e "
+              const f = 'capacitor.config.json';
+              const c = JSON.parse(require('fs').readFileSync(f, 'utf8'));
+              c.appendUserAgent = ((c.appendUserAgent || '') + ' romadetalles-push-fcm').trim();
+              require('fs').writeFileSync(f, JSON.stringify(c, null, 2));
+            "
             echo "google-services.json escrito: la APK saldrá con avisos."
           else
             echo "::warning::Falta el secreto GOOGLE_SERVICES_JSON — la APK saldrá SIN avisos."

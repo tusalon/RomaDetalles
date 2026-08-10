@@ -188,6 +188,19 @@ function TarjetaAvisos({ negocioId }) {
         );
     }
 
+    // APK sin Firebase compilado. No se ofrece el botón a propósito:
+    // intentar registrarse ahí no da error, cierra la app.
+    if (estado === 'apk_sin_avisos') {
+        return (
+            <div className="admin-card push-card">
+                <h3>Avisos de pedidos nuevos</h3>
+                <p>Esta versión de la app todavía no trae los avisos. Descarga la
+                   última versión para activarlos. Mientras tanto los pedidos
+                   siguen apareciendo en la pestaña Reservas.</p>
+            </div>
+        );
+    }
+
     if (estado === 'no_soportado') {
         return (
             <div className="admin-card push-card">

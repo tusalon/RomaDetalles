@@ -54,6 +54,21 @@
         return window.Capacitor?.Plugins?.PushNotifications || null;
     }
 
+    /**
+     * ¿Esta APK se compiló con Firebase dentro?
+     *
+     * Importa muchísimo: si el plugin está pero falta google-services.json,
+     * llamar a register() no devuelve un error — tumba la app entera, y es
+     * un fallo nativo que ningún try/catch de JS puede atrapar. Así que no
+     * se intenta salvo que el build lo confirme.
+     *
+     * La confirmación viene en el User-Agent: el workflow añade esta marca
+     * solo cuando escribió el google-services.json.
+     */
+    function apkConFirebase() {
+        return /romadetalles-push-fcm/.test(navigator.userAgent || '');
+    }
+
     function plataformaNativa() {
         return window.Capacitor?.getPlatform?.() || 'native';
     }
@@ -96,6 +111,15 @@
     }
 
     async function activarAvisosNativos(negocioId) {
+        // Primero lo que puede tumbar la app: sin Firebase compilado,
+        // register() no falla, revienta. Ni se intenta.
+        if (!apkConFirebase()) {
+            return {
+                ok: false,
+                motivo: 'apk_sin_avisos',
+                mensaje: 'Esta versión de la app todavía no trae los avisos. Descarga la última versión y vuelve a intentarlo.'
+            };
+        }
         const PushNotifications = pluginPush();
         if (!PushNotifications) {
             return {
@@ -188,6 +212,7 @@
         // aquí solo se dice "se puede ofrecer el botón"; el permiso de
         // verdad se pide al pulsarlo.
         if (esAppNativa()) {
+            if (!apkConFirebase()) return 'apk_sin_avisos';
             return localStorage.getItem('romadetallesPushNativo') ? 'permitido' : 'puede_pedirse';
         }
         // El iPhone se pregunta ANTES que el soporte general: Safari no

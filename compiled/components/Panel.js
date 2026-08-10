@@ -110,6 +110,9 @@ function TarjetaAvisos({ negocioId }) {
   if (estado === "instalar_primero") {
     return /* @__PURE__ */ React.createElement("div", { className: "admin-card push-card" }, /* @__PURE__ */ React.createElement("h3", null, "Avisos de pedidos nuevos"), /* @__PURE__ */ React.createElement("p", null, "En iPhone los avisos funcionan solo con la app instalada. Pulsa ", /* @__PURE__ */ React.createElement("strong", null, "Compartir → Añadir a pantalla de inicio"), ", ábrela desde el ícono y aquí podrás activarlos."));
   }
+  if (estado === "apk_sin_avisos") {
+    return /* @__PURE__ */ React.createElement("div", { className: "admin-card push-card" }, /* @__PURE__ */ React.createElement("h3", null, "Avisos de pedidos nuevos"), /* @__PURE__ */ React.createElement("p", null, "Esta versión de la app todavía no trae los avisos. Descarga la última versión para activarlos. Mientras tanto los pedidos siguen apareciendo en la pestaña Reservas."));
+  }
   if (estado === "no_soportado") {
     return /* @__PURE__ */ React.createElement("div", { className: "admin-card push-card" }, /* @__PURE__ */ React.createElement("h3", null, "Avisos de pedidos nuevos"), /* @__PURE__ */ React.createElement("p", null, "Este navegador no puede recibir avisos. Los pedidos siguen apareciendo en la pestaña Reservas."));
   }
