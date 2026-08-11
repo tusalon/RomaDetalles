@@ -250,6 +250,7 @@ function Panel({ negocioInicial, email }) {
             anticipo_redondear: negocio.anticipo_redondear !== false,
             pago_tarjeta: negocio.pago_tarjeta || "",
             pago_telefono: negocio.pago_telefono || "",
+            direccion: negocio.direccion || "",
             actualizado_en: (/* @__PURE__ */ new Date()).toISOString()
           })
         }
@@ -922,7 +923,14 @@ function Panel({ negocioInicial, email }) {
       value: negocio.pago_telefono || "",
       onChange: (e) => setNegocio({ ...negocio, pago_telefono: e.target.value })
     }
-  )), /* @__PURE__ */ React.createElement("label", null, "Instagram", /* @__PURE__ */ React.createElement(
+  )), /* @__PURE__ */ React.createElement("label", { className: "wide" }, "Dirección de recogida", /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      placeholder: "Ej. Calle 23 #456 e/ 8 y 10, Vedado",
+      value: negocio.direccion || "",
+      onChange: (e) => setNegocio({ ...negocio, direccion: e.target.value })
+    }
+  ), /* @__PURE__ */ React.createElement("small", null, "La clienta la ve al hacer el pedido y en el enlace de su reserva. Si la dejas vacía, no se muestra.")), /* @__PURE__ */ React.createElement("label", null, "Instagram", /* @__PURE__ */ React.createElement(
     "input",
     {
       placeholder: "https://instagram.com/...",

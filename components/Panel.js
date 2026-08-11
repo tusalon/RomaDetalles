@@ -443,6 +443,7 @@ function Panel({ negocioInicial, email }) {
                         anticipo_redondear: negocio.anticipo_redondear !== false,
                         pago_tarjeta: negocio.pago_tarjeta || '',
                         pago_telefono: negocio.pago_telefono || '',
+                        direccion: negocio.direccion || '',
                         actualizado_en: new Date().toISOString()
                     })
                 }
@@ -1319,6 +1320,12 @@ function Panel({ negocioInicial, email }) {
                                     <input placeholder="Ej. 53842336" inputMode="tel"
                                         value={negocio.pago_telefono || ''}
                                         onChange={(e) => setNegocio({ ...negocio, pago_telefono: e.target.value })} />
+                                </label>
+                                <label className="wide">Dirección de recogida
+                                    <input placeholder="Ej. Calle 23 #456 e/ 8 y 10, Vedado"
+                                        value={negocio.direccion || ''}
+                                        onChange={(e) => setNegocio({ ...negocio, direccion: e.target.value })} />
+                                    <small>La clienta la ve al hacer el pedido y en el enlace de su reserva. Si la dejas vacía, no se muestra.</small>
                                 </label>
                                 <label>Instagram
                                     <input placeholder="https://instagram.com/..." value={negocio.instagram_url}

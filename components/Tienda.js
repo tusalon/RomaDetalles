@@ -136,7 +136,7 @@ function Tienda() {
                 const negocios = await window.supaGet(
                     `alquiler_negocios?slug=eq.${encodeURIComponent(slug)}&activo=eq.true` +
                     `&select=id,slug,nombre,titulo_bienvenida,texto_bienvenida,whatsapp,moneda,instagram_url,facebook_url,` +
-                    `anticipo_porciento,anticipo_redondear,pago_tarjeta,pago_telefono`
+                    `anticipo_porciento,anticipo_redondear,pago_tarjeta,pago_telefono,direccion`
                 );
                 if (!negocios.length) {
                     setErrorCarga('No encontramos esta tienda. Revisa el enlace.');
@@ -601,6 +601,15 @@ function Tienda() {
                                     <small>Tu reserva queda confirmada cuando el negocio reciba el anticipo.</small>
                                 </div>
                             )}
+                            {negocio.direccion && (
+                                <div className="datos-recogida">
+                                    <strong>Dónde recoger</strong>
+                                    <p>{negocio.direccion}</p>
+                                    {hayFecha && (
+                                        <small>El {fechaLarga(inicioRango)} después de las 5:00 PM.</small>
+                                    )}
+                                </div>
+                            )}
                             <form className="checkout" onSubmit={enviarPedido}>
                                 <input placeholder="Tu nombre" required value={nombre}
                                     onChange={(e) => setNombre(e.target.value)} />
@@ -855,6 +864,12 @@ function MiReserva({ token }) {
                     <p style={{ color: 'var(--muted)' }}>
                         Recoges el {fechaLarga(reserva.fecha_inicio)} después de las 5:00 PM
                     </p>
+                    {reserva.negocio_direccion && (
+                        <div className="datos-recogida">
+                            <strong>Dónde recoger</strong>
+                            <p>{reserva.negocio_direccion}</p>
+                        </div>
+                    )}
                     <ul>
                         {(reserva.items || []).map((item, i) => (
                             <li key={i}>{item.cantidad} × {item.producto_nombre}</li>

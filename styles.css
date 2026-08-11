@@ -242,6 +242,12 @@ h1,h2,h3,p { text-wrap: pretty; }
 .datos-pago p { color:var(--ink); font-size:13px; margin:8px 0 0; }
 .datos-pago b { font-variant-numeric:tabular-nums; }
 .datos-pago small { color:var(--purple); display:block; font-size:10px; font-weight:700; margin-top:10px; }
+/* Hermana de .datos-pago pero en crema, no lila: el pago pide una acción
+   (transferir) y por eso destaca; la dirección solo se lee. */
+.datos-recogida { background:var(--cream); border-radius:12px; margin-top:14px; padding:14px 16px; }
+.datos-recogida strong { color:var(--burgundy); display:block; font-size:12px; }
+.datos-recogida p { color:var(--ink); font-size:13px; line-height:1.5; margin:8px 0 0; }
+.datos-recogida small { color:var(--muted); display:block; font-size:11px; margin-top:8px; }
 .mis-reservas-otras { border-top:1px solid var(--border); display:grid; gap:6px; margin-top:18px; padding-top:14px; }
 .mis-reservas-otras small { color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:.06em; }
 .mis-reservas-otras a { color:var(--purple); font-size:13px; text-decoration:underline; text-underline-offset:3px; }
