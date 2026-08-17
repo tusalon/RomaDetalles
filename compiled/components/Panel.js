@@ -121,7 +121,8 @@ function TarjetaAvisos({ negocioId }) {
 function TarjetaReserva({ pedido, moneda, onCambiarEstado, onEliminar, onEditar }) {
   const puedeEliminar = pedido.estado === "entregado" || pedido.estado === "devuelto" || pedido.estado === "cancelado";
   const puedeEditar = pedido.estado === "pendiente" || pedido.estado === "confirmado";
-  return /* @__PURE__ */ React.createElement("article", { className: "admin-order admin-card" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("span", { className: `order-chip ${pedido.estado}` }, ETIQUETA_ESTADO[pedido.estado] || pedido.estado), /* @__PURE__ */ React.createElement("h3", null, pedido.cliente_nombre), pedido.dias > 1 ? /* @__PURE__ */ React.createElement("p", null, pedido.id, " · Reserva anterior: ", fechaLargaPanel(pedido.fecha_inicio), " al ", fechaLargaPanel(pedido.fecha_fin), " · ", pedido.dias, " días") : /* @__PURE__ */ React.createElement("p", null, pedido.id, " · Evento: ", fechaLargaPanel(pedido.fecha_evento || pedido.fecha_inicio)), pedido.dias <= 1 && /* @__PURE__ */ React.createElement("p", null, "Recoge el ", fechaLargaPanel(pedido.fecha_inicio), " después de las 5:00 PM"), pedido.cliente_telefono && /* @__PURE__ */ React.createElement("p", null, "📞 ", /* @__PURE__ */ React.createElement("a", { href: `tel:${pedido.cliente_telefono}` }, pedido.cliente_telefono)), pedido.notas && /* @__PURE__ */ React.createElement("p", null, "📝 ", pedido.notas)), /* @__PURE__ */ React.createElement("ul", null, (pedido.alquiler_pedido_items || []).map((item) => /* @__PURE__ */ React.createElement("li", { key: item.id }, item.cantidad, " × ", item.producto_nombre))), /* @__PURE__ */ React.createElement("div", { className: "order-importes" }, /* @__PURE__ */ React.createElement("strong", null, dineroPanel(pedido.total), " ", moneda), Number(pedido.anticipo) > 0 && /* @__PURE__ */ React.createElement("small", null, "Anticipo: ", dineroPanel(pedido.anticipo), " ", moneda)), /* @__PURE__ */ React.createElement("div", null, pedido.estado === "pendiente" && /* @__PURE__ */ React.createElement("button", { onClick: () => onCambiarEstado(pedido, "confirmado") }, "Confirmar"), pedido.estado === "confirmado" && /* @__PURE__ */ React.createElement("button", { onClick: () => onCambiarEstado(pedido, "entregado") }, "Entregada"), pedido.estado === "entregado" && /* @__PURE__ */ React.createElement("button", { onClick: () => onCambiarEstado(pedido, "devuelto") }, "Devuelta"), puedeEditar && /* @__PURE__ */ React.createElement("button", { className: "secondary", onClick: () => onEditar(pedido) }, "Editar"), pedido.estado !== "cancelado" && pedido.estado !== "devuelto" && /* @__PURE__ */ React.createElement("button", { className: "danger", onClick: () => onCambiarEstado(pedido, "cancelado") }, "Cancelar"), puedeEliminar && /* @__PURE__ */ React.createElement("button", { className: "danger", onClick: () => onEliminar(pedido) }, "Eliminar")));
+  const vencida = pedido.estado === "pendiente" && pedido.expira_en && new Date(pedido.expira_en) < /* @__PURE__ */ new Date();
+  return /* @__PURE__ */ React.createElement("article", { className: "admin-order admin-card" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("span", { className: `order-chip ${vencida ? "cancelado" : pedido.estado}` }, vencida ? "VENCIDA" : ETIQUETA_ESTADO[pedido.estado] || pedido.estado), vencida && /* @__PURE__ */ React.createElement("p", { className: "reserva-vencida" }, "No llegó el anticipo a tiempo. Sus artículos ya volvieron a estar disponibles, así que pueden estar reservados por otra clienta."), /* @__PURE__ */ React.createElement("h3", null, pedido.cliente_nombre), pedido.dias > 1 ? /* @__PURE__ */ React.createElement("p", null, pedido.id, " · Reserva anterior: ", fechaLargaPanel(pedido.fecha_inicio), " al ", fechaLargaPanel(pedido.fecha_fin), " · ", pedido.dias, " días") : /* @__PURE__ */ React.createElement("p", null, pedido.id, " · Evento: ", fechaLargaPanel(pedido.fecha_evento || pedido.fecha_inicio)), pedido.dias <= 1 && /* @__PURE__ */ React.createElement("p", null, "Recoge el ", fechaLargaPanel(pedido.fecha_inicio), " después de las 5:00 PM"), pedido.cliente_telefono && /* @__PURE__ */ React.createElement("p", null, "📞 ", /* @__PURE__ */ React.createElement("a", { href: `tel:${pedido.cliente_telefono}` }, pedido.cliente_telefono)), pedido.notas && /* @__PURE__ */ React.createElement("p", null, "📝 ", pedido.notas)), /* @__PURE__ */ React.createElement("ul", null, (pedido.alquiler_pedido_items || []).map((item) => /* @__PURE__ */ React.createElement("li", { key: item.id }, item.cantidad, " × ", item.producto_nombre))), /* @__PURE__ */ React.createElement("div", { className: "order-importes" }, /* @__PURE__ */ React.createElement("strong", null, dineroPanel(pedido.total), " ", moneda), Number(pedido.anticipo) > 0 && /* @__PURE__ */ React.createElement("small", null, "Anticipo: ", dineroPanel(pedido.anticipo), " ", moneda)), /* @__PURE__ */ React.createElement("div", null, pedido.estado === "pendiente" && /* @__PURE__ */ React.createElement("button", { onClick: () => onCambiarEstado(pedido, "confirmado", vencida) }, vencida ? "Confirmar igual" : "Confirmar"), pedido.estado === "confirmado" && /* @__PURE__ */ React.createElement("button", { onClick: () => onCambiarEstado(pedido, "entregado") }, "Entregada"), pedido.estado === "entregado" && /* @__PURE__ */ React.createElement("button", { onClick: () => onCambiarEstado(pedido, "devuelto") }, "Devuelta"), puedeEditar && /* @__PURE__ */ React.createElement("button", { className: "secondary", onClick: () => onEditar(pedido) }, "Editar"), pedido.estado !== "cancelado" && pedido.estado !== "devuelto" && /* @__PURE__ */ React.createElement("button", { className: "danger", onClick: () => onCambiarEstado(pedido, "cancelado") }, "Cancelar"), puedeEliminar && /* @__PURE__ */ React.createElement("button", { className: "danger", onClick: () => onEliminar(pedido) }, "Eliminar")));
 }
 function Panel({ negocioInicial, email }) {
   const [pestana, setPestana] = useState("reservas");
@@ -165,7 +166,7 @@ function Panel({ negocioInicial, email }) {
   const cargarPedidos = useCallback(async () => {
     try {
       const filas = await window.supaGet(
-        `alquiler_pedidos?negocio_id=eq.${negocio.id}&oculto=eq.false&select=id,cliente_nombre,cliente_telefono,fecha_evento,fecha_inicio,fecha_fin,dias,total,anticipo,estado,notas,creado_en,alquiler_pedido_items(id,producto_id,producto_nombre,cantidad)&order=creado_en.desc&limit=200`
+        `alquiler_pedidos?negocio_id=eq.${negocio.id}&oculto=eq.false&select=id,cliente_nombre,cliente_telefono,fecha_evento,fecha_inicio,fecha_fin,dias,total,anticipo,estado,notas,creado_en,expira_en,alquiler_pedido_items(id,producto_id,producto_nombre,cantidad)&order=creado_en.desc&limit=200`
       );
       setPedidos(filas);
     } catch (e) {
@@ -179,7 +180,7 @@ function Panel({ negocioInicial, email }) {
     const hasta = `${mesCalendario}-${String(new Date(anio, mes, 0).getDate()).padStart(2, "0")}`;
     try {
       const filas = await window.supaGet(
-        `alquiler_pedidos?negocio_id=eq.${negocio.id}&oculto=eq.false&fecha_evento=gte.${desde}&fecha_evento=lte.${hasta}&select=id,cliente_nombre,cliente_telefono,fecha_evento,fecha_inicio,fecha_fin,dias,total,anticipo,estado,notas,creado_en,alquiler_pedido_items(id,producto_id,producto_nombre,cantidad)&order=fecha_evento.asc`
+        `alquiler_pedidos?negocio_id=eq.${negocio.id}&oculto=eq.false&fecha_evento=gte.${desde}&fecha_evento=lte.${hasta}&select=id,cliente_nombre,cliente_telefono,fecha_evento,fecha_inicio,fecha_fin,dias,total,anticipo,estado,notas,creado_en,expira_en,alquiler_pedido_items(id,producto_id,producto_nombre,cantidad)&order=fecha_evento.asc`
       );
       setPedidosMes(filas);
     } catch (e) {
@@ -251,6 +252,7 @@ function Panel({ negocioInicial, email }) {
             pago_tarjeta: negocio.pago_tarjeta || "",
             pago_telefono: negocio.pago_telefono || "",
             direccion: negocio.direccion || "",
+            horas_reserva: Math.min(168, Math.max(1, Math.floor(Number(negocio.horas_reserva) || 12))),
             actualizado_en: (/* @__PURE__ */ new Date()).toISOString()
           })
         }
@@ -425,7 +427,14 @@ function Panel({ negocioInicial, email }) {
       console.error("[Panel] error eliminando foto de galería:", e);
     }
   }
-  async function cambiarEstado(pedido, estado) {
+  async function cambiarEstado(pedido, estado, vencida) {
+    if (vencida && !window.confirm(
+      `A esta reserva se le paso el plazo del anticipo y sus articulos volvieron a estar disponibles.
+
+Si la confirmas, vuelven a quedar tomados. Comprueba antes que no se los hayas prometido a otra clienta.
+
+¿Confirmarla de todos modos?`
+    )) return;
     try {
       const res = await fetch(
         `${window.SUPABASE_URL}/rest/v1/alquiler_pedidos?id=eq.${pedido.id}`,
@@ -828,7 +837,7 @@ function Panel({ negocioInicial, email }) {
         }
       ), " ", "Visible"), /* @__PURE__ */ React.createElement("button", { onClick: () => guardarProducto(producto) }, "Guardar"), /* @__PURE__ */ React.createElement("button", { className: "danger", onClick: () => ocultarProducto(producto) }, "Quitar"))
     );
-  }))), pestana === "ocupacion" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "admin-title" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "Qué te está produciendo"), /* @__PURE__ */ React.createElement("h1", null, "Ocupación"))), /* @__PURE__ */ React.createElement("div", { className: "admin-card push-card" }, /* @__PURE__ */ React.createElement("p", null, "Días que estuvo alquilado cada artículo en el período elegido. Lo de arriba es lo que más te produce; lo de abajo, lo que te está ocupando espacio. Cada evento cuenta 2 días: la tarde que se recoge y la mañana que se entrega."), /* @__PURE__ */ React.createElement("div", { className: "dates", style: { maxWidth: "360px" } }, /* @__PURE__ */ React.createElement("label", null, "Desde", /* @__PURE__ */ React.createElement(
+  }))), pestana === "ocupacion" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "admin-title" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "Qué te está produciendo"), /* @__PURE__ */ React.createElement("h1", null, "Ocupación"))), /* @__PURE__ */ React.createElement("div", { className: "admin-card push-card" }, /* @__PURE__ */ React.createElement("p", null, "Días que estuvo alquilado cada artículo en el período elegido. Lo de arriba es lo que más te produce; lo de abajo, lo que te está ocupando espacio. Cada evento cuenta 3 días: la víspera que se recoge, el día del evento, y la mañana que se entrega."), /* @__PURE__ */ React.createElement("div", { className: "dates", style: { maxWidth: "360px" } }, /* @__PURE__ */ React.createElement("label", null, "Desde", /* @__PURE__ */ React.createElement(
     "input",
     {
       type: "date",
@@ -923,7 +932,17 @@ function Panel({ negocioInicial, email }) {
       value: negocio.pago_telefono || "",
       onChange: (e) => setNegocio({ ...negocio, pago_telefono: e.target.value })
     }
-  )), /* @__PURE__ */ React.createElement("label", { className: "wide" }, "Dirección de recogida", /* @__PURE__ */ React.createElement(
+  )), /* @__PURE__ */ React.createElement("label", null, "Horas para pagar el anticipo", /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      type: "number",
+      min: "1",
+      max: "168",
+      inputMode: "numeric",
+      value: negocio.horas_reserva ?? 12,
+      onChange: (e) => setNegocio({ ...negocio, horas_reserva: e.target.value })
+    }
+  ), /* @__PURE__ */ React.createElement("small", null, "Si la clienta no paga en ese plazo, sus artículos vuelven a quedar libres. Entre 1 y 168 horas (una semana).")), /* @__PURE__ */ React.createElement("label", { className: "wide" }, "Dirección de recogida", /* @__PURE__ */ React.createElement(
     "input",
     {
       placeholder: "Ej. Calle 23 #456 e/ 8 y 10, Vedado",

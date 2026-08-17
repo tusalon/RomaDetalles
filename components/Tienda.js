@@ -46,6 +46,39 @@ function diaAntes(iso) {
     return d.toISOString().slice(0, 10);
 }
 
+// Día de entrega: la mañana siguiente al evento. Cierra la ventana de
+// tres días en que el artículo está fuera (se recoge, se usa, se
+// entrega), que es la que el servidor guarda y consulta.
+function diaDespues(iso) {
+    const d = new Date(`${iso}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + 1);
+    return d.toISOString().slice(0, 10);
+}
+
+// "12 horas", "1 hora", "2 días" — el plazo que el negocio da para ver
+// el anticipo, dicho como lo diría una persona.
+function horasPlazo(negocio) {
+    const horas = Number(negocio?.horas_reserva) || 12;
+    if (horas < 24) return `${horas} ${horas === 1 ? 'hora' : 'horas'}`;
+    const dias = Math.round(horas / 24);
+    return `${dias} ${dias === 1 ? 'día' : 'días'}`;
+}
+
+// "hoy a las 8:30 PM" / "mañana a las 9:00 AM": el momento exacto en que
+// vence la reserva, para que la clienta no tenga que calcularlo.
+function vencimientoLargo(iso) {
+    if (!iso) return '';
+    const cuando = new Date(iso);
+    const hoy = new Date();
+    const mismoDia = cuando.toDateString() === hoy.toDateString();
+    const manana = new Date(hoy);
+    manana.setDate(manana.getDate() + 1);
+    const hora = cuando.toLocaleTimeString('es', { hour: 'numeric', minute: '2-digit' });
+    if (mismoDia) return `hoy a las ${hora}`;
+    if (cuando.toDateString() === manana.toDateString()) return `mañana a las ${hora}`;
+    return `${cuando.toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' })} a las ${hora}`;
+}
+
 // Espejo en JS de alquiler_anticipo() en Postgres. La fuente de verdad
 // es la de Postgres (se guarda en el pedido); esta solo sirve para
 // mostrarle el número a la clienta antes de enviar. Las dos guardas
@@ -136,7 +169,7 @@ function Tienda() {
                 const negocios = await window.supaGet(
                     `alquiler_negocios?slug=eq.${encodeURIComponent(slug)}&activo=eq.true` +
                     `&select=id,slug,nombre,titulo_bienvenida,texto_bienvenida,whatsapp,moneda,instagram_url,facebook_url,` +
-                    `anticipo_porciento,anticipo_redondear,pago_tarjeta,pago_telefono,direccion`
+                    `anticipo_porciento,anticipo_redondear,pago_tarjeta,pago_telefono,direccion,horas_reserva`
                 );
                 if (!negocios.length) {
                     setErrorCarga('No encontramos esta tienda. Revisa el enlace.');
@@ -179,7 +212,7 @@ function Tienda() {
         window.supaRpc('alquiler_disponibilidad', {
             p_negocio: negocio.id,
             p_inicio: diaAntes(fechaEvento),
-            p_fin: fechaEvento
+            p_fin: diaDespues(fechaEvento)
         })
             .then((filas) => {
                 if (!vigente) return;
@@ -297,7 +330,7 @@ function Tienda() {
                 // para que vea el estado real en vez de insistir a ciegas.
                 if (res.status === 409) {
                     const filas = await window.supaRpc('alquiler_disponibilidad', {
-                        p_negocio: negocio.id, p_inicio: diaAntes(fechaEvento), p_fin: fechaEvento
+                        p_negocio: negocio.id, p_inicio: diaAntes(fechaEvento), p_fin: diaDespues(fechaEvento)
                     });
                     const mapa = {};
                     filas.forEach((f) => { mapa[f.producto_id] = f.disponible; });
@@ -598,7 +631,11 @@ function Tienda() {
                                     <strong>Para confirmar tu reserva, transfiere el anticipo a:</strong>
                                     <p>Tarjeta: <b>{negocio.pago_tarjeta}</b></p>
                                     {negocio.pago_telefono && <p>Teléfono: <b>{negocio.pago_telefono}</b></p>}
-                                    <small>Tu reserva queda confirmada cuando el negocio reciba el anticipo.</small>
+                                    <small>
+                                        Tu reserva queda confirmada cuando el negocio reciba el anticipo.
+                                        {' '}Tienes {horasPlazo(negocio)} para pagarlo; pasado ese tiempo
+                                        los artículos vuelven a quedar libres para otras clientas.
+                                    </small>
                                 </div>
                             )}
                             {negocio.direccion && (
@@ -788,6 +825,11 @@ function MiReserva({ token }) {
 
     const moneda = reserva.moneda || 'CUP';
     const etiqueta = ETIQUETA_ESTADO_CLIENTE[reserva.estado] || reserva.estado;
+    // Vencida = sigue pendiente pero ya pasó el plazo del anticipo. El
+    // stock ya se liberó (la consulta de disponibilidad la ignora), así
+    // que decírselo es más honesto que dejarla creer que está guardada.
+    const vencida = reserva.estado === 'pendiente' &&
+        reserva.expira_en && new Date(reserva.expira_en) < new Date();
 
     function solicitarCambio() {
         const numero = (reserva.negocio_whatsapp || '').replace(/\D/g, '');
@@ -864,6 +906,23 @@ function MiReserva({ token }) {
                     <p style={{ color: 'var(--muted)' }}>
                         Recoges el {fechaLarga(reserva.fecha_inicio)} después de las 5:00 PM
                     </p>
+                    {reserva.estado === 'pendiente' && reserva.expira_en && (
+                        vencida ? (
+                            <div className="datos-recogida vencida">
+                                <strong>Se venció el plazo</strong>
+                                <p>
+                                    No llegó el anticipo a tiempo, así que los artículos volvieron a
+                                    quedar libres. Escríbenos y vemos si todavía se puede.
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="datos-recogida">
+                                <strong>Falta confirmar el anticipo</strong>
+                                <p>Tienes hasta {vencimientoLargo(reserva.expira_en)} para pagarlo.</p>
+                                <small>Después de esa hora los artículos vuelven a quedar libres.</small>
+                            </div>
+                        )
+                    )}
                     {reserva.negocio_direccion && (
                         <div className="datos-recogida">
                             <strong>Dónde recoger</strong>

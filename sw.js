@@ -7,7 +7,7 @@
 // y el `?v=` de ese archivo en los HTML. Si no, los teléfonos siguen
 // sirviendo la versión vieja de la caché y el cambio no llega. Es el mismo
 // problema que ya conoces de rservasroma.
-const CACHE_NAME = 'romadetalles-v15';
+const CACHE_NAME = 'romadetalles-v16';
 
 // Solo lo que de verdad conviene precargar. Las fotos de productos viven en
 // Cloudinary (CDN) y no se cachean aquí: son grandes y cambian seguido.

@@ -248,6 +248,11 @@ h1,h2,h3,p { text-wrap: pretty; }
 .datos-recogida strong { color:var(--burgundy); display:block; font-size:12px; }
 .datos-recogida p { color:var(--ink); font-size:13px; line-height:1.5; margin:8px 0 0; }
 .datos-recogida small { color:var(--muted); display:block; font-size:11px; margin-top:8px; }
+/* Plazo del anticipo agotado: el stock ya se liberó, así que se dice en
+   rojo y no en crema — no es un dato más, es algo que se perdió. */
+.datos-recogida.vencida { background:var(--ocupado-bg); }
+.datos-recogida.vencida strong { color:var(--ocupado); }
+.reserva-vencida { background:var(--ocupado-bg); border-radius:10px; color:var(--ocupado); font-size:12px; line-height:1.5; margin:10px 0 0; padding:10px 12px; }
 .mis-reservas-otras { border-top:1px solid var(--border); display:grid; gap:6px; margin-top:18px; padding-top:14px; }
 .mis-reservas-otras small { color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:.06em; }
 .mis-reservas-otras a { color:var(--purple); font-size:13px; text-decoration:underline; text-underline-offset:3px; }

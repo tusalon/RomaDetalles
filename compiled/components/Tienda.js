@@ -16,6 +16,29 @@ function diaAntes(iso) {
   d.setUTCDate(d.getUTCDate() - 1);
   return d.toISOString().slice(0, 10);
 }
+function diaDespues(iso) {
+  const d = /* @__PURE__ */ new Date(`${iso}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+function horasPlazo(negocio) {
+  const horas = Number(negocio?.horas_reserva) || 12;
+  if (horas < 24) return `${horas} ${horas === 1 ? "hora" : "horas"}`;
+  const dias = Math.round(horas / 24);
+  return `${dias} ${dias === 1 ? "día" : "días"}`;
+}
+function vencimientoLargo(iso) {
+  if (!iso) return "";
+  const cuando = new Date(iso);
+  const hoy = /* @__PURE__ */ new Date();
+  const mismoDia = cuando.toDateString() === hoy.toDateString();
+  const manana = new Date(hoy);
+  manana.setDate(manana.getDate() + 1);
+  const hora = cuando.toLocaleTimeString("es", { hour: "numeric", minute: "2-digit" });
+  if (mismoDia) return `hoy a las ${hora}`;
+  if (cuando.toDateString() === manana.toDateString()) return `mañana a las ${hora}`;
+  return `${cuando.toLocaleDateString("es", { weekday: "long", day: "numeric", month: "long" })} a las ${hora}`;
+}
 function calcularAnticipo(total, porciento, redondear) {
   const pct = Number(porciento) || 0;
   if (pct <= 0 || total <= 0) return 0;
@@ -80,7 +103,7 @@ function Tienda() {
     (async () => {
       try {
         const negocios = await window.supaGet(
-          `alquiler_negocios?slug=eq.${encodeURIComponent(slug)}&activo=eq.true&select=id,slug,nombre,titulo_bienvenida,texto_bienvenida,whatsapp,moneda,instagram_url,facebook_url,anticipo_porciento,anticipo_redondear,pago_tarjeta,pago_telefono,direccion`
+          `alquiler_negocios?slug=eq.${encodeURIComponent(slug)}&activo=eq.true&select=id,slug,nombre,titulo_bienvenida,texto_bienvenida,whatsapp,moneda,instagram_url,facebook_url,anticipo_porciento,anticipo_redondear,pago_tarjeta,pago_telefono,direccion,horas_reserva`
         );
         if (!negocios.length) {
           setErrorCarga("No encontramos esta tienda. Revisa el enlace.");
@@ -117,7 +140,7 @@ function Tienda() {
     window.supaRpc("alquiler_disponibilidad", {
       p_negocio: negocio.id,
       p_inicio: diaAntes(fechaEvento),
-      p_fin: fechaEvento
+      p_fin: diaDespues(fechaEvento)
     }).then((filas) => {
       if (!vigente) return;
       const mapa = {};
@@ -217,7 +240,7 @@ function Tienda() {
           const filas = await window.supaRpc("alquiler_disponibilidad", {
             p_negocio: negocio.id,
             p_inicio: diaAntes(fechaEvento),
-            p_fin: fechaEvento
+            p_fin: diaDespues(fechaEvento)
           });
           const mapa = {};
           filas.forEach((f) => {
@@ -324,7 +347,7 @@ function Tienda() {
       "aria-label": "Agregar uno"
     },
     "+"
-  )))), /* @__PURE__ */ React.createElement("div", { className: "total" }, /* @__PURE__ */ React.createElement("span", null, "Total"), /* @__PURE__ */ React.createElement("strong", null, dinero(totalPedido), " ", moneda)), anticipo > 0 && /* @__PURE__ */ React.createElement("div", { className: "anticipo-desglose" }, /* @__PURE__ */ React.createElement("p", null, /* @__PURE__ */ React.createElement("span", null, "Anticipo (", negocio.anticipo_porciento, "%)"), /* @__PURE__ */ React.createElement("strong", null, dinero(anticipo), " ", moneda)), /* @__PURE__ */ React.createElement("p", null, /* @__PURE__ */ React.createElement("span", null, "Resto al recoger"), /* @__PURE__ */ React.createElement("strong", null, dinero(totalPedido - anticipo), " ", moneda))), anticipo > 0 && negocio.pago_tarjeta && /* @__PURE__ */ React.createElement("div", { className: "datos-pago" }, /* @__PURE__ */ React.createElement("strong", null, "Para confirmar tu reserva, transfiere el anticipo a:"), /* @__PURE__ */ React.createElement("p", null, "Tarjeta: ", /* @__PURE__ */ React.createElement("b", null, negocio.pago_tarjeta)), negocio.pago_telefono && /* @__PURE__ */ React.createElement("p", null, "Teléfono: ", /* @__PURE__ */ React.createElement("b", null, negocio.pago_telefono)), /* @__PURE__ */ React.createElement("small", null, "Tu reserva queda confirmada cuando el negocio reciba el anticipo.")), negocio.direccion && /* @__PURE__ */ React.createElement("div", { className: "datos-recogida" }, /* @__PURE__ */ React.createElement("strong", null, "Dónde recoger"), /* @__PURE__ */ React.createElement("p", null, negocio.direccion), hayFecha && /* @__PURE__ */ React.createElement("small", null, "El ", fechaLarga(inicioRango), " después de las 5:00 PM.")), /* @__PURE__ */ React.createElement("form", { className: "checkout", onSubmit: enviarPedido }, /* @__PURE__ */ React.createElement(
+  )))), /* @__PURE__ */ React.createElement("div", { className: "total" }, /* @__PURE__ */ React.createElement("span", null, "Total"), /* @__PURE__ */ React.createElement("strong", null, dinero(totalPedido), " ", moneda)), anticipo > 0 && /* @__PURE__ */ React.createElement("div", { className: "anticipo-desglose" }, /* @__PURE__ */ React.createElement("p", null, /* @__PURE__ */ React.createElement("span", null, "Anticipo (", negocio.anticipo_porciento, "%)"), /* @__PURE__ */ React.createElement("strong", null, dinero(anticipo), " ", moneda)), /* @__PURE__ */ React.createElement("p", null, /* @__PURE__ */ React.createElement("span", null, "Resto al recoger"), /* @__PURE__ */ React.createElement("strong", null, dinero(totalPedido - anticipo), " ", moneda))), anticipo > 0 && negocio.pago_tarjeta && /* @__PURE__ */ React.createElement("div", { className: "datos-pago" }, /* @__PURE__ */ React.createElement("strong", null, "Para confirmar tu reserva, transfiere el anticipo a:"), /* @__PURE__ */ React.createElement("p", null, "Tarjeta: ", /* @__PURE__ */ React.createElement("b", null, negocio.pago_tarjeta)), negocio.pago_telefono && /* @__PURE__ */ React.createElement("p", null, "Teléfono: ", /* @__PURE__ */ React.createElement("b", null, negocio.pago_telefono)), /* @__PURE__ */ React.createElement("small", null, "Tu reserva queda confirmada cuando el negocio reciba el anticipo.", " ", "Tienes ", horasPlazo(negocio), " para pagarlo; pasado ese tiempo los artículos vuelven a quedar libres para otras clientas.")), negocio.direccion && /* @__PURE__ */ React.createElement("div", { className: "datos-recogida" }, /* @__PURE__ */ React.createElement("strong", null, "Dónde recoger"), /* @__PURE__ */ React.createElement("p", null, negocio.direccion), hayFecha && /* @__PURE__ */ React.createElement("small", null, "El ", fechaLarga(inicioRango), " después de las 5:00 PM.")), /* @__PURE__ */ React.createElement("form", { className: "checkout", onSubmit: enviarPedido }, /* @__PURE__ */ React.createElement(
     "input",
     {
       placeholder: "Tu nombre",
@@ -468,6 +491,7 @@ function MiReserva({ token }) {
   }
   const moneda = reserva.moneda || "CUP";
   const etiqueta = ETIQUETA_ESTADO_CLIENTE[reserva.estado] || reserva.estado;
+  const vencida = reserva.estado === "pendiente" && reserva.expira_en && new Date(reserva.expira_en) < /* @__PURE__ */ new Date();
   function solicitarCambio() {
     const numero = (reserva.negocio_whatsapp || "").replace(/\D/g, "");
     const mensaje = `Hola, quiero pedir un cambio en mi reserva del ${fechaLarga(reserva.fecha_evento)}.`;
@@ -519,7 +543,7 @@ function MiReserva({ token }) {
       setGuardando(false);
     }
   }
-  return /* @__PURE__ */ React.createElement("main", null, /* @__PURE__ */ React.createElement("header", { className: "header" }, /* @__PURE__ */ React.createElement("a", { className: "brand", href: "#" }, /* @__PURE__ */ React.createElement("span", null, "✦"), " ", reserva.negocio_nombre)), /* @__PURE__ */ React.createElement("section", { className: "shell", style: { paddingBlock: "60px" } }, /* @__PURE__ */ React.createElement("div", { className: "admin-card", style: { margin: "0 auto", maxWidth: "480px", padding: "28px" } }, /* @__PURE__ */ React.createElement("span", { className: `order-chip ${reserva.estado}` }, etiqueta), /* @__PURE__ */ React.createElement("h1", { style: { color: "var(--burgundy)", fontFamily: "var(--serif)", margin: "14px 0 4px" } }, fechaLarga(reserva.fecha_evento)), /* @__PURE__ */ React.createElement("p", { style: { color: "var(--muted)" } }, "Recoges el ", fechaLarga(reserva.fecha_inicio), " después de las 5:00 PM"), reserva.negocio_direccion && /* @__PURE__ */ React.createElement("div", { className: "datos-recogida" }, /* @__PURE__ */ React.createElement("strong", null, "Dónde recoger"), /* @__PURE__ */ React.createElement("p", null, reserva.negocio_direccion)), /* @__PURE__ */ React.createElement("ul", null, (reserva.items || []).map((item, i) => /* @__PURE__ */ React.createElement("li", { key: i }, item.cantidad, " × ", item.producto_nombre))), /* @__PURE__ */ React.createElement("p", null, /* @__PURE__ */ React.createElement("strong", null, "Total: ", dinero(reserva.total), " ", moneda)), Number(reserva.anticipo) > 0 && /* @__PURE__ */ React.createElement("p", null, "Anticipo: ", dinero(reserva.anticipo), " ", moneda), edicion ? /* @__PURE__ */ React.createElement("form", { className: "mi-reserva-form", onSubmit: guardarEdicion }, /* @__PURE__ */ React.createElement("label", null, "Día del evento", /* @__PURE__ */ React.createElement(
+  return /* @__PURE__ */ React.createElement("main", null, /* @__PURE__ */ React.createElement("header", { className: "header" }, /* @__PURE__ */ React.createElement("a", { className: "brand", href: "#" }, /* @__PURE__ */ React.createElement("span", null, "✦"), " ", reserva.negocio_nombre)), /* @__PURE__ */ React.createElement("section", { className: "shell", style: { paddingBlock: "60px" } }, /* @__PURE__ */ React.createElement("div", { className: "admin-card", style: { margin: "0 auto", maxWidth: "480px", padding: "28px" } }, /* @__PURE__ */ React.createElement("span", { className: `order-chip ${reserva.estado}` }, etiqueta), /* @__PURE__ */ React.createElement("h1", { style: { color: "var(--burgundy)", fontFamily: "var(--serif)", margin: "14px 0 4px" } }, fechaLarga(reserva.fecha_evento)), /* @__PURE__ */ React.createElement("p", { style: { color: "var(--muted)" } }, "Recoges el ", fechaLarga(reserva.fecha_inicio), " después de las 5:00 PM"), reserva.estado === "pendiente" && reserva.expira_en && (vencida ? /* @__PURE__ */ React.createElement("div", { className: "datos-recogida vencida" }, /* @__PURE__ */ React.createElement("strong", null, "Se venció el plazo"), /* @__PURE__ */ React.createElement("p", null, "No llegó el anticipo a tiempo, así que los artículos volvieron a quedar libres. Escríbenos y vemos si todavía se puede.")) : /* @__PURE__ */ React.createElement("div", { className: "datos-recogida" }, /* @__PURE__ */ React.createElement("strong", null, "Falta confirmar el anticipo"), /* @__PURE__ */ React.createElement("p", null, "Tienes hasta ", vencimientoLargo(reserva.expira_en), " para pagarlo."), /* @__PURE__ */ React.createElement("small", null, "Después de esa hora los artículos vuelven a quedar libres."))), reserva.negocio_direccion && /* @__PURE__ */ React.createElement("div", { className: "datos-recogida" }, /* @__PURE__ */ React.createElement("strong", null, "Dónde recoger"), /* @__PURE__ */ React.createElement("p", null, reserva.negocio_direccion)), /* @__PURE__ */ React.createElement("ul", null, (reserva.items || []).map((item, i) => /* @__PURE__ */ React.createElement("li", { key: i }, item.cantidad, " × ", item.producto_nombre))), /* @__PURE__ */ React.createElement("p", null, /* @__PURE__ */ React.createElement("strong", null, "Total: ", dinero(reserva.total), " ", moneda)), Number(reserva.anticipo) > 0 && /* @__PURE__ */ React.createElement("p", null, "Anticipo: ", dinero(reserva.anticipo), " ", moneda), edicion ? /* @__PURE__ */ React.createElement("form", { className: "mi-reserva-form", onSubmit: guardarEdicion }, /* @__PURE__ */ React.createElement("label", null, "Día del evento", /* @__PURE__ */ React.createElement(
     "input",
     {
       type: "date",

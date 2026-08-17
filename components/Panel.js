@@ -243,13 +243,24 @@ function TarjetaReserva({ pedido, moneda, onCambiarEstado, onEliminar, onEditar 
         pedido.estado === 'entregado' || pedido.estado === 'devuelto' || pedido.estado === 'cancelado';
     // Una vez entregada o devuelta, editar ya no describiría lo que pasó.
     const puedeEditar = pedido.estado === 'pendiente' || pedido.estado === 'confirmado';
+    // Pendiente a la que se le pasó el plazo del anticipo. Su stock YA se
+    // liberó (la consulta de disponibilidad la ignora), así que puede
+    // estar vendido a otra clienta: confirmarla a ciegas sobrevende.
+    const vencida = pedido.estado === 'pendiente' &&
+        pedido.expira_en && new Date(pedido.expira_en) < new Date();
 
     return (
         <article className="admin-order admin-card">
             <div>
-                <span className={`order-chip ${pedido.estado}`}>
-                    {ETIQUETA_ESTADO[pedido.estado] || pedido.estado}
+                <span className={`order-chip ${vencida ? 'cancelado' : pedido.estado}`}>
+                    {vencida ? 'VENCIDA' : (ETIQUETA_ESTADO[pedido.estado] || pedido.estado)}
                 </span>
+                {vencida && (
+                    <p className="reserva-vencida">
+                        No llegó el anticipo a tiempo. Sus artículos ya volvieron a estar
+                        disponibles, así que pueden estar reservados por otra clienta.
+                    </p>
+                )}
                 <h3>{pedido.cliente_nombre}</h3>
                 {pedido.dias > 1
                     ? <p>{pedido.id} · Reserva anterior: {fechaLargaPanel(pedido.fecha_inicio)} al {fechaLargaPanel(pedido.fecha_fin)} · {pedido.dias} días</p>
@@ -275,7 +286,9 @@ function TarjetaReserva({ pedido, moneda, onCambiarEstado, onEliminar, onEditar 
             </div>
             <div>
                 {pedido.estado === 'pendiente' && (
-                    <button onClick={() => onCambiarEstado(pedido, 'confirmado')}>Confirmar</button>
+                    <button onClick={() => onCambiarEstado(pedido, 'confirmado', vencida)}>
+                        {vencida ? 'Confirmar igual' : 'Confirmar'}
+                    </button>
                 )}
                 {pedido.estado === 'confirmado' && (
                     <button onClick={() => onCambiarEstado(pedido, 'entregado')}>Entregada</button>
@@ -350,7 +363,7 @@ function Panel({ negocioInicial, email }) {
         try {
             const filas = await window.supaGet(
                 `alquiler_pedidos?negocio_id=eq.${negocio.id}&oculto=eq.false` +
-                `&select=id,cliente_nombre,cliente_telefono,fecha_evento,fecha_inicio,fecha_fin,dias,total,anticipo,estado,notas,creado_en,` +
+                `&select=id,cliente_nombre,cliente_telefono,fecha_evento,fecha_inicio,fecha_fin,dias,total,anticipo,estado,notas,creado_en,expira_en,` +
                 `alquiler_pedido_items(id,producto_id,producto_nombre,cantidad)` +
                 `&order=creado_en.desc&limit=200`
             );
@@ -369,7 +382,7 @@ function Panel({ negocioInicial, email }) {
             const filas = await window.supaGet(
                 `alquiler_pedidos?negocio_id=eq.${negocio.id}&oculto=eq.false` +
                 `&fecha_evento=gte.${desde}&fecha_evento=lte.${hasta}` +
-                `&select=id,cliente_nombre,cliente_telefono,fecha_evento,fecha_inicio,fecha_fin,dias,total,anticipo,estado,notas,creado_en,` +
+                `&select=id,cliente_nombre,cliente_telefono,fecha_evento,fecha_inicio,fecha_fin,dias,total,anticipo,estado,notas,creado_en,expira_en,` +
                 `alquiler_pedido_items(id,producto_id,producto_nombre,cantidad)` +
                 `&order=fecha_evento.asc`
             );
@@ -444,6 +457,7 @@ function Panel({ negocioInicial, email }) {
                         pago_tarjeta: negocio.pago_tarjeta || '',
                         pago_telefono: negocio.pago_telefono || '',
                         direccion: negocio.direccion || '',
+                        horas_reserva: Math.min(168, Math.max(1, Math.floor(Number(negocio.horas_reserva) || 12))),
                         actualizado_en: new Date().toISOString()
                     })
                 }
@@ -642,7 +656,16 @@ function Panel({ negocioInicial, email }) {
     }
 
     // ---- Reservas -----------------------------------------------------
-    async function cambiarEstado(pedido, estado) {
+    async function cambiarEstado(pedido, estado, vencida) {
+        // Confirmar una vencida vuelve a tomar stock que ya se habia
+        // liberado, y puede estar prometido a otra clienta. Se puede
+        // hacer — a veces el anticipo llego tarde y se acepta — pero
+        // conviene mirar la disponibilidad antes.
+        if (vencida && !window.confirm(
+            `A esta reserva se le paso el plazo del anticipo y sus articulos volvieron a estar disponibles.\n\n` +
+            `Si la confirmas, vuelven a quedar tomados. Comprueba antes que no se los hayas prometido a otra clienta.\n\n` +
+            `¿Confirmarla de todos modos?`
+        )) return;
         try {
             const res = await fetch(
                 `${window.SUPABASE_URL}/rest/v1/alquiler_pedidos?id=eq.${pedido.id}`,
@@ -1160,8 +1183,8 @@ function Panel({ negocioInicial, email }) {
                                 <p>
                                     Días que estuvo alquilado cada artículo en el período elegido.
                                     Lo de arriba es lo que más te produce; lo de abajo, lo que te
-                                    está ocupando espacio. Cada evento cuenta 2 días: la tarde que
-                                    se recoge y la mañana que se entrega.
+                                    está ocupando espacio. Cada evento cuenta 3 días: la víspera
+                                    que se recoge, el día del evento, y la mañana que se entrega.
                                 </p>
                                 <div className="dates" style={{ maxWidth: '360px' }}>
                                     <label>Desde
@@ -1320,6 +1343,12 @@ function Panel({ negocioInicial, email }) {
                                     <input placeholder="Ej. 53842336" inputMode="tel"
                                         value={negocio.pago_telefono || ''}
                                         onChange={(e) => setNegocio({ ...negocio, pago_telefono: e.target.value })} />
+                                </label>
+                                <label>Horas para pagar el anticipo
+                                    <input type="number" min="1" max="168" inputMode="numeric"
+                                        value={negocio.horas_reserva ?? 12}
+                                        onChange={(e) => setNegocio({ ...negocio, horas_reserva: e.target.value })} />
+                                    <small>Si la clienta no paga en ese plazo, sus artículos vuelven a quedar libres. Entre 1 y 168 horas (una semana).</small>
                                 </label>
                                 <label className="wide">Dirección de recogida
                                     <input placeholder="Ej. Calle 23 #456 e/ 8 y 10, Vedado"
