@@ -251,6 +251,7 @@ function Panel({ negocioInicial, email }) {
             anticipo_redondear: negocio.anticipo_redondear !== false,
             pago_tarjeta: negocio.pago_tarjeta || "",
             pago_telefono: negocio.pago_telefono || "",
+            politica_seguro: negocio.politica_seguro || "",
             direccion: negocio.direccion || "",
             horas_reserva: Math.min(168, Math.max(1, Math.floor(Number(negocio.horas_reserva) || 12))),
             actualizado_en: (/* @__PURE__ */ new Date()).toISOString()
@@ -932,7 +933,14 @@ Si la confirmas, vuelven a quedar tomados. Comprueba antes que no se los hayas p
       value: negocio.pago_telefono || "",
       onChange: (e) => setNegocio({ ...negocio, pago_telefono: e.target.value })
     }
-  )), /* @__PURE__ */ React.createElement("label", null, "Horas para pagar el anticipo", /* @__PURE__ */ React.createElement(
+  )), /* @__PURE__ */ React.createElement("label", { className: "wide" }, "Política ante roturas o extravíos", /* @__PURE__ */ React.createElement(
+    "textarea",
+    {
+      placeholder: "Ej. La clienta es responsable de reponer o pagar cualquier artículo roto, manchado o extraviado durante el alquiler.",
+      value: negocio.politica_seguro || "",
+      onChange: (e) => setNegocio({ ...negocio, politica_seguro: e.target.value })
+    }
+  ), /* @__PURE__ */ React.createElement("small", null, "Aparece en el mensaje de WhatsApp de la solicitud, cerca del anticipo. Si la dejas vacía, no se muestra ninguna línea.")), /* @__PURE__ */ React.createElement("label", null, "Horas para pagar el anticipo", /* @__PURE__ */ React.createElement(
     "input",
     {
       type: "number",
@@ -981,7 +989,7 @@ Si la confirmas, vuelven a quedar tomados. Comprueba antes que no se los hayas p
       value: negocio.plantilla_solicitud || "",
       onChange: (e) => setNegocio({ ...negocio, plantilla_solicitud: e.target.value })
     }
-  ), /* @__PURE__ */ React.createElement("small", null, "Variables disponibles: ", "{nombre}", ", ", "{fechas}", " (el día del evento), ", "{items}", ", ", "{total}", ", ", "{anticipo}", ", ", "{tarjeta}", ", ", "{telefono_pago}", ", ", "{telefono}", ", ", "{notas}", ", ", "{pedido_id}", ". ", "{telefono}", ", ", "{notas}", " y ", "{anticipo}", " ya vienen con su propio emoji y desaparecen del todo si el dato no aplica — ponlas en su propia línea. Es el mensaje que le llega a WhatsApp cuando una clienta pide un alquiler desde tu tienda.")), /* @__PURE__ */ React.createElement("label", { className: "wide" }, "Enlace de tu tienda", /* @__PURE__ */ React.createElement(
+  ), /* @__PURE__ */ React.createElement("small", null, "Variables disponibles: ", "{nombre}", ", ", "{fechas}", " (el día del evento), ", "{items}", ", ", "{total}", ", ", "{anticipo}", ", ", "{politica_seguro}", ", ", "{tarjeta}", ", ", "{telefono_pago}", ", ", "{telefono}", ", ", "{notas}", ", ", "{pedido_id}", ". ", "{telefono}", ", ", "{notas}", ", ", "{anticipo}", " y ", "{politica_seguro}", " ya vienen con su propio emoji y desaparecen del todo si el dato no aplica — ponlas en su propia línea. Es el mensaje que le llega a WhatsApp cuando una clienta pide un alquiler desde tu tienda.")), /* @__PURE__ */ React.createElement("label", { className: "wide" }, "Enlace de tu tienda", /* @__PURE__ */ React.createElement(
     "input",
     {
       readOnly: true,

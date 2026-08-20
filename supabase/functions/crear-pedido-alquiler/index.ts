@@ -93,6 +93,7 @@ const PLANTILLA_SOLICITUD_POR_DEFECTO =
   "\n" +
   "💰 Total: {total}\n" +
   "{anticipo}\n" +
+  "{politica_seguro}\n" +
   "👤 Cliente: {nombre}\n" +
   "{telefono}\n" +
   "{notas}\n" +
@@ -118,6 +119,7 @@ function armarMensajeSolicitud(
     nombre: string;
     telefono: string;
     notas: string;
+    politicaSeguro: string;
     tarjeta: string;
     telefonoPago: string;
     enlaceReserva: string;
@@ -153,7 +155,8 @@ function armarMensajeSolicitud(
     .replaceAll("{enlace_reserva}", datos.enlaceReserva)
     .replaceAll("{nombre}", datos.nombre)
     .replaceAll("{telefono}", datos.telefono ? `📞 ${datos.telefono}` : "")
-    .replaceAll("{notas}", datos.notas ? `📝 ${datos.notas}` : "");
+    .replaceAll("{notas}", datos.notas ? `📝 ${datos.notas}` : "")
+    .replaceAll("{politica_seguro}", datos.politicaSeguro ? `⚠️ ${datos.politicaSeguro}` : "");
 
   return texto.replace(/\n{3,}/g, "\n\n").trim();
 }
@@ -220,7 +223,7 @@ Deno.serve(async (req) => {
   }
 
   const negocioRes = await fetch(
-    `${supabaseUrl}/rest/v1/alquiler_negocios?${filtro}&activo=eq.true&select=id,nombre,whatsapp,moneda,plantilla_solicitud,pago_tarjeta,pago_telefono`,
+    `${supabaseUrl}/rest/v1/alquiler_negocios?${filtro}&activo=eq.true&select=id,nombre,whatsapp,moneda,plantilla_solicitud,pago_tarjeta,pago_telefono,politica_seguro`,
     { headers: auth },
   );
   const negocios = negocioRes.ok ? await negocioRes.json() : [];
@@ -275,6 +278,7 @@ Deno.serve(async (req) => {
     nombre,
     telefono,
     notas,
+    politicaSeguro: negocio.politica_seguro || "",
     tarjeta: negocio.pago_tarjeta || "",
     telefonoPago: negocio.pago_telefono || "",
     enlaceReserva: `https://tusalon.github.io/RomaDetalles/index.html?reserva=${pedido.token_acceso}`,
