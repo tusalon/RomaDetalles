@@ -37,6 +37,21 @@ function fechaLargaPanel(iso) {
         .toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' });
 }
 
+// "hoy a las 8:30 PM" / "mañana a las 9:00 AM" — igual que vencimientoLargo()
+// en Tienda.js, para el mensaje de reactivación.
+function vencimientoLargoPanel(iso) {
+    if (!iso) return '';
+    const cuando = new Date(iso);
+    const hoy = new Date();
+    const mismoDia = cuando.toDateString() === hoy.toDateString();
+    const manana = new Date(hoy);
+    manana.setDate(manana.getDate() + 1);
+    const hora = cuando.toLocaleTimeString('es', { hour: 'numeric', minute: '2-digit' });
+    if (mismoDia) return `hoy a las ${hora}`;
+    if (cuando.toDateString() === manana.toDateString()) return `mañana a las ${hora}`;
+    return `${cuando.toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' })} a las ${hora}`;
+}
+
 const ETIQUETA_ESTADO = {
     pendiente: 'Pendiente',
     confirmado: 'Confirmada',
@@ -85,6 +100,24 @@ function armarMensajeConfirmacion(plantilla, pedido, moneda) {
         .replaceAll('{total}', total);
 }
 
+// Mensaje a la clienta cuando su reserva se reactiva: mismo pedido, mismos
+// artículos (ya validados de nuevo contra el stock), plazo nuevo. Sin
+// plantilla configurable a propósito — es una acción secundaria, no el
+// mensaje principal de solicitud/confirmación.
+function armarMensajeReactivacion(pedido, negocio, moneda) {
+    const lineas = [
+        `Hola ${pedido.cliente_nombre}, tu reserva ${pedido.id} sigue en pie ✅`,
+        `📅 ${fechaLargaPanel(pedido.fecha_evento || pedido.fecha_inicio)}`
+    ];
+    if (Number(pedido.anticipo) > 0) {
+        lineas.push(`💳 Anticipo: ${dineroPanel(pedido.anticipo)} ${moneda}`);
+        if (negocio.pago_tarjeta) lineas.push(`Tarjeta: ${negocio.pago_tarjeta}`);
+        if (negocio.pago_telefono) lineas.push(`Teléfono: ${negocio.pago_telefono}`);
+    }
+    lineas.push(`Tienes hasta ${vencimientoLargoPanel(pedido.expira_en)} para hacer la transferencia.`);
+    return lineas.join('\n');
+}
+
 // Traduce el error crudo de Postgres (que llega como "42501: {...}" o
 // "409: ...SIN_STOCK:Nombre...") a algo que el admin entienda, igual que
 // hace la Edge Function crear-pedido-alquiler para la clienta.
@@ -102,6 +135,7 @@ function mensajeDeErrorReserva(error) {
     if (texto.includes('PRODUCTO_NO_EXISTE')) return 'Uno de los artículos ya no existe.';
     if (texto.includes('NO_AUTORIZADO')) return 'No tienes permiso para crear reservas en este negocio.';
     if (texto.includes('RESERVA_NO_EDITABLE')) return 'Esta reserva ya no se puede editar. Cancélala y haz otra.';
+    if (texto.includes('RESERVA_NO_REACTIVABLE')) return 'Esta reserva no está cancelada ni vencida — no hace falta reactivarla.';
     if (texto.includes('FECHA_PASADA')) return 'No puedes mover la reserva a un día que ya pasó.';
     if (texto.includes('PEDIDO_NO_EXISTE')) return 'Esa reserva ya no existe.';
     console.error('[Panel] error de reserva no reconocido:', texto);
@@ -238,7 +272,7 @@ function TarjetaAvisos({ negocioId }) {
 // ---------------------------------------------------------------------
 // Tarjeta de una reserva — la usan tanto la Lista como el Calendario
 // ---------------------------------------------------------------------
-function TarjetaReserva({ pedido, moneda, onCambiarEstado, onEliminar, onEditar }) {
+function TarjetaReserva({ pedido, moneda, onCambiarEstado, onEliminar, onEditar, onReactivar }) {
     const puedeEliminar =
         pedido.estado === 'entregado' || pedido.estado === 'devuelto' || pedido.estado === 'cancelado';
     // Una vez entregada o devuelta, editar ya no describiría lo que pasó.
@@ -248,6 +282,9 @@ function TarjetaReserva({ pedido, moneda, onCambiarEstado, onEliminar, onEditar 
     // estar vendido a otra clienta: confirmarla a ciegas sobrevende.
     const vencida = pedido.estado === 'pendiente' &&
         pedido.expira_en && new Date(pedido.expira_en) < new Date();
+    // Cancelada o vencida: se le puede dar un plazo nuevo sin rehacer el
+    // pedido — alquiler_reactivar_pedido revalida el stock antes de abrirlo.
+    const puedeReactivar = pedido.estado === 'cancelado' || vencida;
 
     return (
         <article className="admin-order admin-card">
@@ -295,6 +332,9 @@ function TarjetaReserva({ pedido, moneda, onCambiarEstado, onEliminar, onEditar 
                 )}
                 {pedido.estado === 'entregado' && (
                     <button onClick={() => onCambiarEstado(pedido, 'devuelto')}>Devuelta</button>
+                )}
+                {puedeReactivar && (
+                    <button className="secondary" onClick={() => onReactivar(pedido)}>Reactivar</button>
                 )}
                 {puedeEditar && (
                     <button className="secondary" onClick={() => onEditar(pedido)}>Editar</button>
@@ -703,6 +743,37 @@ function Panel({ negocioInicial, email }) {
         }
     }
 
+    // Reserva cancelada (o pendiente vencida) que la clienta sí quiere
+    // pagar: en vez de que vuelva a armar el pedido desde cero, se le da
+    // un plazo nuevo al mismo pedido — pero solo si el stock sigue
+    // alcanzando, porque el tiempo que pasó pudo habérselo dado a otra
+    // clienta.
+    async function reactivarReserva(pedido) {
+        if (!window.confirm(
+            `Vas a reactivar la reserva de ${pedido.cliente_nombre} con un plazo nuevo para el anticipo.\n\n` +
+            `Confirma antes que la clienta todavía quiere el pedido.\n\n` +
+            `¿Reactivar?`
+        )) return;
+        try {
+            const pedidoActualizado = await window.supaRpc('alquiler_reactivar_pedido', { p_pedido: pedido.id });
+            setPedidos((actual) => actual.map((p) =>
+                p.id === pedido.id ? { ...p, ...pedidoActualizado } : p));
+            setPedidosMes((actual) => actual.map((p) =>
+                p.id === pedido.id ? { ...p, ...pedidoActualizado } : p));
+            notificar('Reserva reactivada con un plazo nuevo.');
+
+            if (pedido.cliente_telefono) {
+                const numero = pedido.cliente_telefono.replace(/\D/g, '');
+                if (numero) {
+                    const mensaje = armarMensajeReactivacion(pedidoActualizado, negocio, moneda);
+                    window.open(`https://wa.me/${numero}?text=${encodeURIComponent(mensaje)}`, '_blank');
+                }
+            }
+        } catch (e) {
+            notificar(mensajeDeErrorReserva(e));
+        }
+    }
+
     async function eliminarReserva(pedido) {
         if (!window.confirm('¿Quitar esta reserva de la lista? No se borra del historial de Ocupación.')) return;
         try {
@@ -1001,7 +1072,7 @@ function Panel({ negocioInicial, email }) {
                                         .map((pedido) => (
                                             <TarjetaReserva key={pedido.id} pedido={pedido} moneda={moneda}
                                                 onCambiarEstado={cambiarEstado} onEliminar={eliminarReserva}
-                                                onEditar={abrirEdicionReserva} />
+                                                onEditar={abrirEdicionReserva} onReactivar={reactivarReserva} />
                                         ))}
                                 </div>
                             ) : (
@@ -1043,7 +1114,7 @@ function Panel({ negocioInicial, email }) {
                                                 .map((pedido) => (
                                                     <TarjetaReserva key={pedido.id} pedido={pedido} moneda={moneda}
                                                         onCambiarEstado={cambiarEstado} onEliminar={eliminarReserva}
-                                                        onEditar={abrirEdicionReserva} />
+                                                        onEditar={abrirEdicionReserva} onReactivar={reactivarReserva} />
                                                 ))}
                                         </div>
                                     )}
