@@ -150,7 +150,7 @@
             `alquiler_negocios?id=eq.${vinculos[0].negocio_id}` +
             `&select=id,slug,nombre,titulo_bienvenida,texto_bienvenida,whatsapp,moneda,instagram_url,facebook_url,activo,` +
             `logo_url,plantilla_confirmacion,plantilla_compartir,plantilla_solicitud,` +
-            `anticipo_porciento,anticipo_redondear,pago_tarjeta,pago_telefono,politica_seguro,direccion,horas_reserva`
+            `anticipo_porciento,anticipo_redondear,pago_tarjeta,pago_telefono,politica_seguro,ofrece_domicilio,direccion,horas_reserva`
         );
         return negocios[0] || null;
     }

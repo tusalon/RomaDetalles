@@ -309,6 +309,7 @@ function TarjetaReserva({ pedido, moneda, onCambiarEstado, onEliminar, onEditar,
                     <p>📞 <a href={`tel:${pedido.cliente_telefono}`}>{pedido.cliente_telefono}</a></p>
                 )}
                 {pedido.notas && <p>📝 {pedido.notas}</p>}
+                {pedido.solicita_domicilio && <p>🚚 Pidió coordinar domicilio</p>}
             </div>
             <ul>
                 {(pedido.alquiler_pedido_items || []).map((item) => (
@@ -403,7 +404,7 @@ function Panel({ negocioInicial, email }) {
         try {
             const filas = await window.supaGet(
                 `alquiler_pedidos?negocio_id=eq.${negocio.id}&oculto=eq.false` +
-                `&select=id,cliente_nombre,cliente_telefono,fecha_evento,fecha_inicio,fecha_fin,dias,total,anticipo,estado,notas,creado_en,expira_en,` +
+                `&select=id,cliente_nombre,cliente_telefono,fecha_evento,fecha_inicio,fecha_fin,dias,total,anticipo,estado,notas,solicita_domicilio,creado_en,expira_en,` +
                 `alquiler_pedido_items(id,producto_id,producto_nombre,cantidad)` +
                 `&order=creado_en.desc&limit=200`
             );
@@ -422,7 +423,7 @@ function Panel({ negocioInicial, email }) {
             const filas = await window.supaGet(
                 `alquiler_pedidos?negocio_id=eq.${negocio.id}&oculto=eq.false` +
                 `&fecha_evento=gte.${desde}&fecha_evento=lte.${hasta}` +
-                `&select=id,cliente_nombre,cliente_telefono,fecha_evento,fecha_inicio,fecha_fin,dias,total,anticipo,estado,notas,creado_en,expira_en,` +
+                `&select=id,cliente_nombre,cliente_telefono,fecha_evento,fecha_inicio,fecha_fin,dias,total,anticipo,estado,notas,solicita_domicilio,creado_en,expira_en,` +
                 `alquiler_pedido_items(id,producto_id,producto_nombre,cantidad)` +
                 `&order=fecha_evento.asc`
             );
@@ -497,6 +498,7 @@ function Panel({ negocioInicial, email }) {
                         pago_tarjeta: negocio.pago_tarjeta || '',
                         pago_telefono: negocio.pago_telefono || '',
                         politica_seguro: negocio.politica_seguro || '',
+                        ofrece_domicilio: negocio.ofrece_domicilio === true,
                         direccion: negocio.direccion || '',
                         horas_reserva: Math.min(168, Math.max(1, Math.floor(Number(negocio.horas_reserva) || 12))),
                         actualizado_en: new Date().toISOString()
@@ -1433,6 +1435,12 @@ function Panel({ negocioInicial, email }) {
                                         value={negocio.direccion || ''}
                                         onChange={(e) => setNegocio({ ...negocio, direccion: e.target.value })} />
                                     <small>La clienta la ve al hacer el pedido y en el enlace de su reserva. Si la dejas vacía, no se muestra.</small>
+                                </label>
+                                <label className="check-linea">
+                                    <input type="checkbox"
+                                        checked={negocio.ofrece_domicilio === true}
+                                        onChange={(e) => setNegocio({ ...negocio, ofrece_domicilio: e.target.checked })} />
+                                    {' '}Ofrezco servicio a domicilio (la clienta lo pide, tú coordinas el costo por WhatsApp)
                                 </label>
                                 <label>Instagram
                                     <input placeholder="https://instagram.com/..." value={negocio.instagram_url}

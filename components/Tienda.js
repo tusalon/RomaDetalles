@@ -117,6 +117,7 @@ function Tienda() {
     const [nombre, setNombre] = useState('');
     const [telefono, setTelefono] = useState('');
     const [notas, setNotas] = useState('');
+    const [solicitaDomicilio, setSolicitaDomicilio] = useState(false);
     const [enviando, setEnviando] = useState(false);
     const [aviso, setAviso] = useState('');
 
@@ -169,7 +170,7 @@ function Tienda() {
                 const negocios = await window.supaGet(
                     `alquiler_negocios?slug=eq.${encodeURIComponent(slug)}&activo=eq.true` +
                     `&select=id,slug,nombre,titulo_bienvenida,texto_bienvenida,whatsapp,moneda,instagram_url,facebook_url,` +
-                    `anticipo_porciento,anticipo_redondear,pago_tarjeta,pago_telefono,direccion,horas_reserva`
+                    `anticipo_porciento,anticipo_redondear,pago_tarjeta,pago_telefono,direccion,horas_reserva,ofrece_domicilio`
                 );
                 if (!negocios.length) {
                     setErrorCarga('No encontramos esta tienda. Revisa el enlace.');
@@ -314,6 +315,7 @@ function Tienda() {
                         cliente_nombre: nombre.trim(),
                         cliente_telefono: telefono.trim(),
                         notas: notas.trim(),
+                        solicita_domicilio: solicitaDomicilio,
                         fecha_evento: fechaEvento,
                         items: enCarrito.map((p) => ({
                             producto_id: p.id,
@@ -646,6 +648,14 @@ function Tienda() {
                                         <small>El {fechaLarga(inicioRango)} después de las 5:00 PM.</small>
                                     )}
                                 </div>
+                            )}
+                            {negocio.ofrece_domicilio && (
+                                <label className="domicilio-check">
+                                    <input type="checkbox" checked={solicitaDomicilio}
+                                        onChange={(e) => setSolicitaDomicilio(e.target.checked)} />
+                                    {' '}Quiero coordinar servicio a domicilio
+                                    <small>El negocio te contactará por WhatsApp para acordar el costo y el punto de entrega.</small>
+                                </label>
                             )}
                             <form className="checkout" onSubmit={enviarPedido}>
                                 <input placeholder="Tu nombre" required value={nombre}

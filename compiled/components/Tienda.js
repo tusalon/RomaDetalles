@@ -68,6 +68,7 @@ function Tienda() {
   const [nombre, setNombre] = useState("");
   const [telefono, setTelefono] = useState("");
   const [notas, setNotas] = useState("");
+  const [solicitaDomicilio, setSolicitaDomicilio] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [aviso, setAviso] = useState("");
   const cardObserverRef = useRef(null);
@@ -103,7 +104,7 @@ function Tienda() {
     (async () => {
       try {
         const negocios = await window.supaGet(
-          `alquiler_negocios?slug=eq.${encodeURIComponent(slug)}&activo=eq.true&select=id,slug,nombre,titulo_bienvenida,texto_bienvenida,whatsapp,moneda,instagram_url,facebook_url,anticipo_porciento,anticipo_redondear,pago_tarjeta,pago_telefono,direccion,horas_reserva`
+          `alquiler_negocios?slug=eq.${encodeURIComponent(slug)}&activo=eq.true&select=id,slug,nombre,titulo_bienvenida,texto_bienvenida,whatsapp,moneda,instagram_url,facebook_url,anticipo_porciento,anticipo_redondear,pago_tarjeta,pago_telefono,direccion,horas_reserva,ofrece_domicilio`
         );
         if (!negocios.length) {
           setErrorCarga("No encontramos esta tienda. Revisa el enlace.");
@@ -225,6 +226,7 @@ function Tienda() {
             cliente_nombre: nombre.trim(),
             cliente_telefono: telefono.trim(),
             notas: notas.trim(),
+            solicita_domicilio: solicitaDomicilio,
             fecha_evento: fechaEvento,
             items: enCarrito.map((p) => ({
               producto_id: p.id,
@@ -347,7 +349,14 @@ function Tienda() {
       "aria-label": "Agregar uno"
     },
     "+"
-  )))), /* @__PURE__ */ React.createElement("div", { className: "total" }, /* @__PURE__ */ React.createElement("span", null, "Total"), /* @__PURE__ */ React.createElement("strong", null, dinero(totalPedido), " ", moneda)), anticipo > 0 && /* @__PURE__ */ React.createElement("div", { className: "anticipo-desglose" }, /* @__PURE__ */ React.createElement("p", null, /* @__PURE__ */ React.createElement("span", null, "Anticipo (", negocio.anticipo_porciento, "%)"), /* @__PURE__ */ React.createElement("strong", null, dinero(anticipo), " ", moneda)), /* @__PURE__ */ React.createElement("p", null, /* @__PURE__ */ React.createElement("span", null, "Resto al recoger"), /* @__PURE__ */ React.createElement("strong", null, dinero(totalPedido - anticipo), " ", moneda))), anticipo > 0 && negocio.pago_tarjeta && /* @__PURE__ */ React.createElement("div", { className: "datos-pago" }, /* @__PURE__ */ React.createElement("strong", null, "Para confirmar tu reserva, transfiere el anticipo a:"), /* @__PURE__ */ React.createElement("p", null, "Tarjeta: ", /* @__PURE__ */ React.createElement("b", null, negocio.pago_tarjeta)), negocio.pago_telefono && /* @__PURE__ */ React.createElement("p", null, "Teléfono: ", /* @__PURE__ */ React.createElement("b", null, negocio.pago_telefono)), /* @__PURE__ */ React.createElement("small", null, "Tu reserva queda confirmada cuando el negocio reciba el anticipo.", " ", "Tienes ", horasPlazo(negocio), " para pagarlo; pasado ese tiempo los artículos vuelven a quedar libres para otras clientas.")), negocio.direccion && /* @__PURE__ */ React.createElement("div", { className: "datos-recogida" }, /* @__PURE__ */ React.createElement("strong", null, "Dónde recoger"), /* @__PURE__ */ React.createElement("p", null, negocio.direccion), hayFecha && /* @__PURE__ */ React.createElement("small", null, "El ", fechaLarga(inicioRango), " después de las 5:00 PM.")), /* @__PURE__ */ React.createElement("form", { className: "checkout", onSubmit: enviarPedido }, /* @__PURE__ */ React.createElement(
+  )))), /* @__PURE__ */ React.createElement("div", { className: "total" }, /* @__PURE__ */ React.createElement("span", null, "Total"), /* @__PURE__ */ React.createElement("strong", null, dinero(totalPedido), " ", moneda)), anticipo > 0 && /* @__PURE__ */ React.createElement("div", { className: "anticipo-desglose" }, /* @__PURE__ */ React.createElement("p", null, /* @__PURE__ */ React.createElement("span", null, "Anticipo (", negocio.anticipo_porciento, "%)"), /* @__PURE__ */ React.createElement("strong", null, dinero(anticipo), " ", moneda)), /* @__PURE__ */ React.createElement("p", null, /* @__PURE__ */ React.createElement("span", null, "Resto al recoger"), /* @__PURE__ */ React.createElement("strong", null, dinero(totalPedido - anticipo), " ", moneda))), anticipo > 0 && negocio.pago_tarjeta && /* @__PURE__ */ React.createElement("div", { className: "datos-pago" }, /* @__PURE__ */ React.createElement("strong", null, "Para confirmar tu reserva, transfiere el anticipo a:"), /* @__PURE__ */ React.createElement("p", null, "Tarjeta: ", /* @__PURE__ */ React.createElement("b", null, negocio.pago_tarjeta)), negocio.pago_telefono && /* @__PURE__ */ React.createElement("p", null, "Teléfono: ", /* @__PURE__ */ React.createElement("b", null, negocio.pago_telefono)), /* @__PURE__ */ React.createElement("small", null, "Tu reserva queda confirmada cuando el negocio reciba el anticipo.", " ", "Tienes ", horasPlazo(negocio), " para pagarlo; pasado ese tiempo los artículos vuelven a quedar libres para otras clientas.")), negocio.direccion && /* @__PURE__ */ React.createElement("div", { className: "datos-recogida" }, /* @__PURE__ */ React.createElement("strong", null, "Dónde recoger"), /* @__PURE__ */ React.createElement("p", null, negocio.direccion), hayFecha && /* @__PURE__ */ React.createElement("small", null, "El ", fechaLarga(inicioRango), " después de las 5:00 PM.")), negocio.ofrece_domicilio && /* @__PURE__ */ React.createElement("label", { className: "domicilio-check" }, /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      type: "checkbox",
+      checked: solicitaDomicilio,
+      onChange: (e) => setSolicitaDomicilio(e.target.checked)
+    }
+  ), " ", "Quiero coordinar servicio a domicilio", /* @__PURE__ */ React.createElement("small", null, "El negocio te contactará por WhatsApp para acordar el costo y el punto de entrega.")), /* @__PURE__ */ React.createElement("form", { className: "checkout", onSubmit: enviarPedido }, /* @__PURE__ */ React.createElement(
     "input",
     {
       placeholder: "Tu nombre",

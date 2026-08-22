@@ -94,6 +94,7 @@ const PLANTILLA_SOLICITUD_POR_DEFECTO =
   "💰 Total: {total}\n" +
   "{anticipo}\n" +
   "{politica_seguro}\n" +
+  "{domicilio}\n" +
   "👤 Cliente: {nombre}\n" +
   "{telefono}\n" +
   "{notas}\n" +
@@ -120,6 +121,7 @@ function armarMensajeSolicitud(
     telefono: string;
     notas: string;
     politicaSeguro: string;
+    solicitaDomicilio: boolean;
     tarjeta: string;
     telefonoPago: string;
     enlaceReserva: string;
@@ -156,7 +158,8 @@ function armarMensajeSolicitud(
     .replaceAll("{nombre}", datos.nombre)
     .replaceAll("{telefono}", datos.telefono ? `📞 ${datos.telefono}` : "")
     .replaceAll("{notas}", datos.notas ? `📝 ${datos.notas}` : "")
-    .replaceAll("{politica_seguro}", datos.politicaSeguro ? `⚠️ ${datos.politicaSeguro}` : "");
+    .replaceAll("{politica_seguro}", datos.politicaSeguro ? `⚠️ ${datos.politicaSeguro}` : "")
+    .replaceAll("{domicilio}", datos.solicitaDomicilio ? "🚚 La clienta pidió coordinar servicio a domicilio." : "");
 
   return texto.replace(/\n{3,}/g, "\n\n").trim();
 }
@@ -185,6 +188,7 @@ Deno.serve(async (req) => {
   const nombre = texto(body.cliente_nombre, 100);
   const telefono = texto(body.cliente_telefono, 40);
   const notas = texto(body.notas, 500);
+  const solicitaDomicilio = body.solicita_domicilio === true;
 
   if (!nombre) return json({ error: "Escribe tu nombre para continuar." }, 400);
   if (!esFecha(body.fecha_evento)) {
@@ -256,6 +260,16 @@ Deno.serve(async (req) => {
     return json({ error: "No se pudo guardar el pedido." }, 500);
   }
 
+  // alquiler_crear_pedido() no sabe nada de domicilio (no participa del
+  // lock de stock), así que se guarda aparte con un PATCH simple.
+  if (solicitaDomicilio) {
+    await fetch(`${supabaseUrl}/rest/v1/alquiler_pedidos?id=eq.${pedido.id}`, {
+      method: "PATCH",
+      headers: auth,
+      body: JSON.stringify({ solicita_domicilio: true }),
+    });
+  }
+
   // ---- Líneas del pedido (para WhatsApp y para el push) -------------
   const itemsRes = await fetch(
     `${supabaseUrl}/rest/v1/alquiler_pedido_items?pedido_id=eq.${encodeURIComponent(pedido.id)}&select=producto_nombre,precio_dia,cantidad`,
@@ -279,6 +293,7 @@ Deno.serve(async (req) => {
     telefono,
     notas,
     politicaSeguro: negocio.politica_seguro || "",
+    solicitaDomicilio,
     tarjeta: negocio.pago_tarjeta || "",
     telefonoPago: negocio.pago_telefono || "",
     enlaceReserva: `https://tusalon.github.io/RomaDetalles/index.html?reserva=${pedido.token_acceso}`,
