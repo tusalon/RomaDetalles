@@ -564,6 +564,67 @@ Confirma antes que la clienta todavía quiere el pedido.
     }
     window.open(`https://wa.me/?text=${encodeURIComponent(mensaje)}`, "_blank");
   }
+  function descargarCatalogoPDF() {
+    const activos = productos.filter((p) => p.activo);
+    if (!activos.length) {
+      notificar("No tienes artículos activos para armar el catálogo.");
+      return;
+    }
+    const escapar = (s) => String(s ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+    const baseUrl = `${window.location.origin}${window.location.pathname.replace(/admin\.html$/, "")}`;
+    const fallback = `${baseUrl}images/producto-arco.png`;
+    const fecha = (/* @__PURE__ */ new Date()).toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric" });
+    const items = activos.map((p) => `
+            <article class="item">
+                <img src="${escapar(p.foto_url || fallback)}" alt="">
+                <div>
+                    <h3>${escapar(p.nombre)}</h3>
+                    ${p.categoria ? `<p class="cat">${escapar(p.categoria)}</p>` : ""}
+                    <strong>${escapar(dineroPanel(p.precio_dia))} ${escapar(moneda)}</strong>
+                </div>
+            </article>
+        `).join("");
+    const html = `<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8">
+<title>Catálogo — ${escapar(negocio.nombre)}</title>
+<style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, sans-serif; color: #2b1c14; margin: 0; }
+    .portada { align-items: center; display: flex; flex-direction: column; justify-content: center;
+        min-height: 100vh; padding: 40px; page-break-after: always; text-align: center; }
+    .portada img { border-radius: 12px; margin-bottom: 24px; max-height: 140px; max-width: 140px; }
+    .portada h1 { font-size: 30px; margin: 0 0 8px; }
+    .portada p { color: #6b5c53; font-size: 14px; margin: 4px 0; }
+    .grid { display: grid; gap: 16px; grid-template-columns: repeat(2, 1fr); padding: 28px; }
+    .item { border: 1px solid #e3d9cf; border-radius: 10px; break-inside: avoid; overflow: hidden; }
+    .item img { background: #f2ece4; display: block; height: 150px; object-fit: cover; width: 100%; }
+    .item div { padding: 10px 12px; }
+    .item h3 { font-size: 14px; margin: 0 0 4px; }
+    .item .cat { color: #8a7a6d; font-size: 10px; letter-spacing: .04em; margin: 0 0 6px; text-transform: uppercase; }
+    .item strong { font-size: 14px; }
+    @media print { .grid { padding: 0; } }
+</style></head>
+<body>
+    <section class="portada">
+        ${negocio.logo_url ? `<img src="${escapar(negocio.logo_url)}" alt="">` : ""}
+        <h1>${escapar(negocio.nombre)}</h1>
+        <p>Catálogo de artículos — ${fecha}</p>
+        ${negocio.whatsapp ? `<p>WhatsApp: ${escapar(negocio.whatsapp)}</p>` : ""}
+    </section>
+    <section class="grid">${items}</section>
+</body></html>`;
+    const ventana = window.open("", "_blank");
+    if (!ventana) {
+      notificar("El navegador bloqueó la ventana. Permite ventanas emergentes e inténtalo de nuevo.");
+      return;
+    }
+    ventana.document.write(html);
+    ventana.document.close();
+    ventana.onload = () => {
+      ventana.focus();
+      ventana.print();
+    };
+  }
   function abrirReservaManual() {
     setReservaManual({ cliente_nombre: "", cliente_telefono: "", notas: "", fecha_evento: "", items: {} });
   }
@@ -780,7 +841,7 @@ Confirma antes que la clienta todavía quiere el pedido.
       onEditar: abrirEdicionReserva,
       onReactivar: reactivarReserva
     }
-  ))))), pestana === "productos" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "admin-title" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "Tu inventario"), /* @__PURE__ */ React.createElement("h1", null, "Artículos")), !productoNuevo && /* @__PURE__ */ React.createElement("button", { onClick: abrirFormularioProducto }, "+ Nuevo artículo")), productoNuevo && /* @__PURE__ */ React.createElement("form", { className: "admin-card producto-form", onSubmit: crearProducto }, /* @__PURE__ */ React.createElement("h3", null, "Nuevo artículo"), /* @__PURE__ */ React.createElement("label", null, "Nombre", /* @__PURE__ */ React.createElement(
+  ))))), pestana === "productos" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "admin-title" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "Tu inventario"), /* @__PURE__ */ React.createElement("h1", null, "Artículos")), /* @__PURE__ */ React.createElement("div", { className: "admin-title-acciones" }, /* @__PURE__ */ React.createElement("button", { onClick: descargarCatalogoPDF }, "Catálogo en PDF"), !productoNuevo && /* @__PURE__ */ React.createElement("button", { onClick: abrirFormularioProducto }, "+ Nuevo artículo"))), productoNuevo && /* @__PURE__ */ React.createElement("form", { className: "admin-card producto-form", onSubmit: crearProducto }, /* @__PURE__ */ React.createElement("h3", null, "Nuevo artículo"), /* @__PURE__ */ React.createElement("label", null, "Nombre", /* @__PURE__ */ React.createElement(
     "input",
     {
       autoFocus: true,

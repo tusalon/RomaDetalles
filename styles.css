@@ -294,7 +294,8 @@ h1,h2,h3,p { text-wrap: pretty; }
    tienda se queda con el serif de personalidad (Fraunces); aquí, sans
    denso y sin drama — es donde de verdad sentiste la fricción en móvil. */
 .admin-title h1 { color:var(--burgundy); font-family:var(--sans); font-size:30px; font-weight:800; letter-spacing:-.01em; margin:0; }
-.admin-title > button,.product-admin-actions button,.admin-order button { background:var(--burgundy); border:0; border-radius:9px; color:white; cursor:pointer; font-size:12px; font-weight:800; min-height:42px; padding:0 16px; }
+.admin-title > button,.admin-title-acciones button,.product-admin-actions button,.admin-order button { background:var(--burgundy); border:0; border-radius:9px; color:white; cursor:pointer; font-size:12px; font-weight:800; min-height:42px; padding:0 16px; }
+.admin-title-acciones { display:flex; flex-wrap:wrap; gap:10px; }
 .admin-card { background:var(--paper); border:1px solid var(--border); border-radius:16px; box-shadow:0 8px 26px rgba(76,34,50,.05); }
 .admin-notice { background:var(--libre-bg); border-radius:10px; color:var(--libre); font-size:12px; padding:12px 15px; }
 .settings-form { display:grid; gap:18px; grid-template-columns:1fr 1fr; padding:28px; }
