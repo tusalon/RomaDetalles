@@ -163,6 +163,7 @@ function Panel({ negocioInicial, email }) {
   const [subiendoLogo, setSubiendoLogo] = useState(false);
   const [productoNuevo, setProductoNuevo] = useState(null);
   const [creandoProducto, setCreandoProducto] = useState(false);
+  const [generandoCatalogo, setGenerandoCatalogo] = useState(false);
   const [reservaManual, setReservaManual] = useState(null);
   const [filtroReservas, setFiltroReservas] = useState("todas");
   const [vistaReservas, setVistaReservas] = useState("lista");
@@ -564,66 +565,114 @@ Confirma antes que la clienta todavía quiere el pedido.
     }
     window.open(`https://wa.me/?text=${encodeURIComponent(mensaje)}`, "_blank");
   }
-  function descargarCatalogoPDF() {
+  async function cargarImagenPDF(url) {
+    if (!url) return null;
+    try {
+      const res = await fetch(url, { mode: "cors" });
+      if (!res.ok) return null;
+      const blob = await res.blob();
+      return await new Promise((resolve) => {
+        const lector = new FileReader();
+        lector.onload = () => resolve(lector.result);
+        lector.onerror = () => resolve(null);
+        lector.readAsDataURL(blob);
+      });
+    } catch (e) {
+      console.warn("[Panel] no se pudo cargar imagen para el PDF:", url, e);
+      return null;
+    }
+  }
+  function formatoImagenPDF(dataUrl) {
+    return dataUrl && dataUrl.startsWith("data:image/png") ? "PNG" : "JPEG";
+  }
+  async function descargarCatalogoPDF() {
     const activos = productos.filter((p) => p.activo);
     if (!activos.length) {
       notificar("No tienes artículos activos para armar el catálogo.");
       return;
     }
-    const escapar = (s) => String(s ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-    const baseUrl = `${window.location.origin}${window.location.pathname.replace(/admin\.html$/, "")}`;
-    const fallback = `${baseUrl}images/producto-arco.png`;
-    const fecha = (/* @__PURE__ */ new Date()).toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric" });
-    const items = activos.map((p) => `
-            <article class="item">
-                <img src="${escapar(p.foto_url || fallback)}" alt="">
-                <div>
-                    <h3>${escapar(p.nombre)}</h3>
-                    ${p.categoria ? `<p class="cat">${escapar(p.categoria)}</p>` : ""}
-                    <strong>${escapar(dineroPanel(p.precio_dia))} ${escapar(moneda)}</strong>
-                </div>
-            </article>
-        `).join("");
-    const html = `<!DOCTYPE html>
-<html lang="es"><head><meta charset="UTF-8">
-<title>Catálogo — ${escapar(negocio.nombre)}</title>
-<style>
-    * { box-sizing: border-box; }
-    body { font-family: system-ui, -apple-system, sans-serif; color: #2b1c14; margin: 0; }
-    .portada { align-items: center; display: flex; flex-direction: column; justify-content: center;
-        min-height: 100vh; padding: 40px; page-break-after: always; text-align: center; }
-    .portada img { border-radius: 12px; margin-bottom: 24px; max-height: 140px; max-width: 140px; }
-    .portada h1 { font-size: 30px; margin: 0 0 8px; }
-    .portada p { color: #6b5c53; font-size: 14px; margin: 4px 0; }
-    .grid { display: grid; gap: 16px; grid-template-columns: repeat(2, 1fr); padding: 28px; }
-    .item { border: 1px solid #e3d9cf; border-radius: 10px; break-inside: avoid; overflow: hidden; }
-    .item img { background: #f2ece4; display: block; height: 150px; object-fit: cover; width: 100%; }
-    .item div { padding: 10px 12px; }
-    .item h3 { font-size: 14px; margin: 0 0 4px; }
-    .item .cat { color: #8a7a6d; font-size: 10px; letter-spacing: .04em; margin: 0 0 6px; text-transform: uppercase; }
-    .item strong { font-size: 14px; }
-    @media print { .grid { padding: 0; } }
-</style></head>
-<body>
-    <section class="portada">
-        ${negocio.logo_url ? `<img src="${escapar(negocio.logo_url)}" alt="">` : ""}
-        <h1>${escapar(negocio.nombre)}</h1>
-        <p>Catálogo de artículos — ${fecha}</p>
-        ${negocio.whatsapp ? `<p>WhatsApp: ${escapar(negocio.whatsapp)}</p>` : ""}
-    </section>
-    <section class="grid">${items}</section>
-</body></html>`;
-    const ventana = window.open("", "_blank");
-    if (!ventana) {
-      notificar("El navegador bloqueó la ventana. Permite ventanas emergentes e inténtalo de nuevo.");
+    if (!window.jspdf?.jsPDF) {
+      notificar("No se pudo cargar el generador de PDF. Revisa tu conexión e inténtalo de nuevo.");
       return;
     }
-    ventana.document.write(html);
-    ventana.document.close();
-    ventana.onload = () => {
-      ventana.focus();
-      ventana.print();
-    };
+    setGenerandoCatalogo(true);
+    try {
+      const [conFoto, logo] = await Promise.all([
+        Promise.all(activos.map(async (p) => ({ ...p, _foto: await cargarImagenPDF(p.foto_url) }))),
+        cargarImagenPDF(negocio.logo_url)
+      ]);
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ unit: "mm", format: "a4" });
+      const anchoPagina = doc.internal.pageSize.getWidth();
+      const altoPagina = doc.internal.pageSize.getHeight();
+      const margen = 14;
+      doc.setFillColor(104, 24, 49);
+      doc.rect(0, 0, anchoPagina, altoPagina, "F");
+      let yPortada = 80;
+      if (logo) {
+        const tamLogo = 38;
+        try {
+          doc.addImage(logo, formatoImagenPDF(logo), anchoPagina / 2 - tamLogo / 2, yPortada, tamLogo, tamLogo);
+          yPortada += tamLogo + 14;
+        } catch (e) {
+          console.warn("[Panel] logo no soportado en el PDF:", e);
+        }
+      }
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(26);
+      doc.text(negocio.nombre || "Catálogo", anchoPagina / 2, yPortada, { align: "center" });
+      doc.setFontSize(12);
+      doc.text("Catálogo de artículos", anchoPagina / 2, yPortada + 10, { align: "center" });
+      doc.setFontSize(10);
+      const fecha = (/* @__PURE__ */ new Date()).toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric" });
+      doc.text(fecha, anchoPagina / 2, altoPagina - 20, { align: "center" });
+      if (negocio.whatsapp) {
+        doc.text(`WhatsApp: ${negocio.whatsapp}`, anchoPagina / 2, altoPagina - 14, { align: "center" });
+      }
+      const fotoAncho = 34, fotoAlto = 28;
+      const textoX = margen + fotoAncho + 6;
+      const textoAncho = anchoPagina - margen - textoX;
+      const filaAlto = fotoAlto + 8;
+      let y = margen;
+      doc.addPage();
+      conFoto.forEach((p) => {
+        if (y + filaAlto > altoPagina - margen) {
+          doc.addPage();
+          y = margen;
+        }
+        if (p._foto) {
+          try {
+            doc.addImage(p._foto, formatoImagenPDF(p._foto), margen, y, fotoAncho, fotoAlto, void 0, "FAST");
+          } catch (e) {
+            console.warn("[Panel] foto no soportada en el PDF:", p.nombre, e);
+          }
+        } else {
+          doc.setDrawColor(227, 217, 207);
+          doc.roundedRect(margen, y, fotoAncho, fotoAlto, 2, 2);
+        }
+        doc.setTextColor(43, 28, 20);
+        doc.setFontSize(12);
+        const lineasNombre = doc.splitTextToSize(p.nombre, textoAncho);
+        doc.text(lineasNombre.slice(0, 2), textoX, y + 7);
+        if (p.categoria) {
+          doc.setFontSize(8.5);
+          doc.setTextColor(138, 122, 109);
+          doc.text(p.categoria.toUpperCase(), textoX, y + fotoAlto - 10);
+        }
+        doc.setFontSize(12);
+        doc.setTextColor(104, 24, 49);
+        doc.text(`${dineroPanel(p.precio_dia)} ${moneda}`, textoX, y + fotoAlto - 2);
+        doc.setDrawColor(240, 232, 224);
+        doc.line(margen, y + filaAlto - 2, anchoPagina - margen, y + filaAlto - 2);
+        y += filaAlto;
+      });
+      doc.save(`catalogo-${negocio.slug || "articulos"}.pdf`);
+    } catch (e) {
+      console.error("[Panel] error armando el catálogo en PDF:", e);
+      notificar("No se pudo generar el catálogo. Inténtalo de nuevo.");
+    } finally {
+      setGenerandoCatalogo(false);
+    }
   }
   function abrirReservaManual() {
     setReservaManual({ cliente_nombre: "", cliente_telefono: "", notas: "", fecha_evento: "", items: {} });
@@ -841,7 +890,7 @@ Confirma antes que la clienta todavía quiere el pedido.
       onEditar: abrirEdicionReserva,
       onReactivar: reactivarReserva
     }
-  ))))), pestana === "productos" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "admin-title" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "Tu inventario"), /* @__PURE__ */ React.createElement("h1", null, "Artículos")), /* @__PURE__ */ React.createElement("div", { className: "admin-title-acciones" }, /* @__PURE__ */ React.createElement("button", { onClick: descargarCatalogoPDF }, "Catálogo en PDF"), !productoNuevo && /* @__PURE__ */ React.createElement("button", { onClick: abrirFormularioProducto }, "+ Nuevo artículo"))), productoNuevo && /* @__PURE__ */ React.createElement("form", { className: "admin-card producto-form", onSubmit: crearProducto }, /* @__PURE__ */ React.createElement("h3", null, "Nuevo artículo"), /* @__PURE__ */ React.createElement("label", null, "Nombre", /* @__PURE__ */ React.createElement(
+  ))))), pestana === "productos" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "admin-title" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "Tu inventario"), /* @__PURE__ */ React.createElement("h1", null, "Artículos")), /* @__PURE__ */ React.createElement("div", { className: "admin-title-acciones" }, /* @__PURE__ */ React.createElement("button", { disabled: generandoCatalogo, onClick: descargarCatalogoPDF }, generandoCatalogo ? "Generando…" : "Catálogo en PDF"), !productoNuevo && /* @__PURE__ */ React.createElement("button", { onClick: abrirFormularioProducto }, "+ Nuevo artículo"))), productoNuevo && /* @__PURE__ */ React.createElement("form", { className: "admin-card producto-form", onSubmit: crearProducto }, /* @__PURE__ */ React.createElement("h3", null, "Nuevo artículo"), /* @__PURE__ */ React.createElement("label", null, "Nombre", /* @__PURE__ */ React.createElement(
     "input",
     {
       autoFocus: true,
