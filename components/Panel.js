@@ -369,6 +369,7 @@ function Panel({ negocioInicial, email }) {
     const [generandoCatalogo, setGenerandoCatalogo] = useState(false);
     const [progresoCatalogo, setProgresoCatalogo] = useState({ hecho: 0, total: 0 });
     const [errorCatalogo, setErrorCatalogo] = useState('');
+    const [catalogoListo, setCatalogoListo] = useState(null);
     const [reservaManual, setReservaManual] = useState(null);
     const [filtroReservas, setFiltroReservas] = useState('todas');
     const [vistaReservas, setVistaReservas] = useState('lista');
@@ -902,6 +903,10 @@ function Panel({ negocioInicial, email }) {
             return;
         }
 
+        // Si ya había un catálogo armado de antes, libera su blob antes de
+        // reemplazarlo — si no, cada generación deja el anterior en memoria.
+        if (catalogoListo?.url) URL.revokeObjectURL(catalogoListo.url);
+        setCatalogoListo(null);
         setErrorCatalogo('');
         setGenerandoCatalogo(true);
         setProgresoCatalogo({ hecho: 0, total: activos.length });
@@ -997,7 +1002,22 @@ function Panel({ negocioInicial, email }) {
                 y += filaAlto;
             });
 
-            doc.save(`catalogo-${negocio.slug || 'articulos'}.pdf`);
+            const nombreArchivo = `catalogo-${negocio.slug || 'articulos'}.pdf`;
+
+            // jsPDF descarga simulando un clic en un enlace, y ese clic solo
+            // cuenta como "de verdad" mientras el navegador recuerda que la
+            // persona tocó la pantalla hace poco. Con muchas fotos, armar el
+            // catálogo puede tardar lo suficiente como para que ese recuerdo
+            // ya haya expirado — y Android descarta el clic simulado sin
+            // avisar: parece que no pasó nada. Por eso el intento automático
+            // es solo el plan A; el enlace de abajo, que la admin toca ella
+            // misma, es el que de verdad garantiza la descarga.
+            try {
+                doc.save(nombreArchivo);
+            } catch (e) {
+                console.warn('[Panel] doc.save() automático falló, queda el enlace manual:', e);
+            }
+            setCatalogoListo({ url: doc.output('bloburl'), nombre: nombreArchivo });
         } catch (e) {
             // Persistente a propósito (no notificar(), que se borra a los 4s):
             // si vuelve a fallar, que quede el mensaje exacto para poder
@@ -1316,6 +1336,17 @@ function Panel({ negocioInicial, email }) {
                             </div>
 
                             {errorCatalogo && <p className="config-warning">{errorCatalogo}</p>}
+
+                            {catalogoListo && (
+                                <p className="mi-reserva-aviso">
+                                    Tu catálogo está listo.{' '}
+                                    <a href={catalogoListo.url} download={catalogoListo.nombre}
+                                        style={{ color: 'var(--burgundy)', fontWeight: 800, textDecoration: 'underline' }}>
+                                        Descargar {catalogoListo.nombre}
+                                    </a>
+                                    {' '}— si no bajó sola, toca aquí.
+                                </p>
+                            )}
 
                             {productoNuevo && (
                                 <form className="admin-card producto-form" onSubmit={crearProducto}>

@@ -166,6 +166,7 @@ function Panel({ negocioInicial, email }) {
   const [generandoCatalogo, setGenerandoCatalogo] = useState(false);
   const [progresoCatalogo, setProgresoCatalogo] = useState({ hecho: 0, total: 0 });
   const [errorCatalogo, setErrorCatalogo] = useState("");
+  const [catalogoListo, setCatalogoListo] = useState(null);
   const [reservaManual, setReservaManual] = useState(null);
   const [filtroReservas, setFiltroReservas] = useState("todas");
   const [vistaReservas, setVistaReservas] = useState("lista");
@@ -604,6 +605,8 @@ Confirma antes que la clienta todavía quiere el pedido.
       setErrorCatalogo("No se pudo cargar el generador de PDF (jsPDF no está disponible). Revisa tu conexión y vuelve a intentar.");
       return;
     }
+    if (catalogoListo?.url) URL.revokeObjectURL(catalogoListo.url);
+    setCatalogoListo(null);
     setErrorCatalogo("");
     setGenerandoCatalogo(true);
     setProgresoCatalogo({ hecho: 0, total: activos.length });
@@ -682,7 +685,13 @@ Confirma antes que la clienta todavía quiere el pedido.
         doc.line(margen, y + filaAlto - 2, anchoPagina - margen, y + filaAlto - 2);
         y += filaAlto;
       });
-      doc.save(`catalogo-${negocio.slug || "articulos"}.pdf`);
+      const nombreArchivo = `catalogo-${negocio.slug || "articulos"}.pdf`;
+      try {
+        doc.save(nombreArchivo);
+      } catch (e) {
+        console.warn("[Panel] doc.save() automático falló, queda el enlace manual:", e);
+      }
+      setCatalogoListo({ url: doc.output("bloburl"), nombre: nombreArchivo });
     } catch (e) {
       console.error("[Panel] error armando el catálogo en PDF:", e);
       setErrorCatalogo(`No se pudo generar el catálogo: ${e?.message || e}`);
@@ -906,7 +915,16 @@ Confirma antes que la clienta todavía quiere el pedido.
       onEditar: abrirEdicionReserva,
       onReactivar: reactivarReserva
     }
-  ))))), pestana === "productos" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "admin-title" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "Tu inventario"), /* @__PURE__ */ React.createElement("h1", null, "Artículos")), /* @__PURE__ */ React.createElement("div", { className: "admin-title-acciones" }, /* @__PURE__ */ React.createElement("button", { disabled: generandoCatalogo, onClick: descargarCatalogoPDF }, generandoCatalogo ? `Generando… ${progresoCatalogo.hecho}/${progresoCatalogo.total}` : "Catálogo en PDF"), !productoNuevo && /* @__PURE__ */ React.createElement("button", { onClick: abrirFormularioProducto }, "+ Nuevo artículo"))), errorCatalogo && /* @__PURE__ */ React.createElement("p", { className: "config-warning" }, errorCatalogo), productoNuevo && /* @__PURE__ */ React.createElement("form", { className: "admin-card producto-form", onSubmit: crearProducto }, /* @__PURE__ */ React.createElement("h3", null, "Nuevo artículo"), /* @__PURE__ */ React.createElement("label", null, "Nombre", /* @__PURE__ */ React.createElement(
+  ))))), pestana === "productos" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "admin-title" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "Tu inventario"), /* @__PURE__ */ React.createElement("h1", null, "Artículos")), /* @__PURE__ */ React.createElement("div", { className: "admin-title-acciones" }, /* @__PURE__ */ React.createElement("button", { disabled: generandoCatalogo, onClick: descargarCatalogoPDF }, generandoCatalogo ? `Generando… ${progresoCatalogo.hecho}/${progresoCatalogo.total}` : "Catálogo en PDF"), !productoNuevo && /* @__PURE__ */ React.createElement("button", { onClick: abrirFormularioProducto }, "+ Nuevo artículo"))), errorCatalogo && /* @__PURE__ */ React.createElement("p", { className: "config-warning" }, errorCatalogo), catalogoListo && /* @__PURE__ */ React.createElement("p", { className: "mi-reserva-aviso" }, "Tu catálogo está listo.", " ", /* @__PURE__ */ React.createElement(
+    "a",
+    {
+      href: catalogoListo.url,
+      download: catalogoListo.nombre,
+      style: { color: "var(--burgundy)", fontWeight: 800, textDecoration: "underline" }
+    },
+    "Descargar ",
+    catalogoListo.nombre
+  ), " ", "— si no bajó sola, toca aquí."), productoNuevo && /* @__PURE__ */ React.createElement("form", { className: "admin-card producto-form", onSubmit: crearProducto }, /* @__PURE__ */ React.createElement("h3", null, "Nuevo artículo"), /* @__PURE__ */ React.createElement("label", null, "Nombre", /* @__PURE__ */ React.createElement(
     "input",
     {
       autoFocus: true,
