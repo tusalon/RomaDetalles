@@ -164,6 +164,8 @@ function Panel({ negocioInicial, email }) {
   const [productoNuevo, setProductoNuevo] = useState(null);
   const [creandoProducto, setCreandoProducto] = useState(false);
   const [generandoCatalogo, setGenerandoCatalogo] = useState(false);
+  const [progresoCatalogo, setProgresoCatalogo] = useState({ hecho: 0, total: 0 });
+  const [errorCatalogo, setErrorCatalogo] = useState("");
   const [reservaManual, setReservaManual] = useState(null);
   const [filtroReservas, setFiltroReservas] = useState("todas");
   const [vistaReservas, setVistaReservas] = useState("lista");
@@ -565,10 +567,15 @@ Confirma antes que la clienta todavía quiere el pedido.
     }
     window.open(`https://wa.me/?text=${encodeURIComponent(mensaje)}`, "_blank");
   }
+  function miniaturaCloudinaria(url) {
+    return url && url.includes("res.cloudinary.com") ? url.replace("/image/upload/", "/image/upload/w_300,q_auto,f_auto/") : url;
+  }
   async function cargarImagenPDF(url) {
     if (!url) return null;
+    const cortador = new AbortController();
+    const corte = setTimeout(() => cortador.abort(), 1e4);
     try {
-      const res = await fetch(url, { mode: "cors" });
+      const res = await fetch(miniaturaCloudinaria(url), { mode: "cors", signal: cortador.signal });
       if (!res.ok) return null;
       const blob = await res.blob();
       return await new Promise((resolve) => {
@@ -580,6 +587,8 @@ Confirma antes que la clienta todavía quiere el pedido.
     } catch (e) {
       console.warn("[Panel] no se pudo cargar imagen para el PDF:", url, e);
       return null;
+    } finally {
+      clearTimeout(corte);
     }
   }
   function formatoImagenPDF(dataUrl) {
@@ -592,15 +601,22 @@ Confirma antes que la clienta todavía quiere el pedido.
       return;
     }
     if (!window.jspdf?.jsPDF) {
-      notificar("No se pudo cargar el generador de PDF. Revisa tu conexión e inténtalo de nuevo.");
+      setErrorCatalogo("No se pudo cargar el generador de PDF (jsPDF no está disponible). Revisa tu conexión y vuelve a intentar.");
       return;
     }
+    setErrorCatalogo("");
     setGenerandoCatalogo(true);
+    setProgresoCatalogo({ hecho: 0, total: activos.length });
     try {
-      const [conFoto, logo] = await Promise.all([
-        Promise.all(activos.map(async (p) => ({ ...p, _foto: await cargarImagenPDF(p.foto_url) }))),
-        cargarImagenPDF(negocio.logo_url)
-      ]);
+      const logo = await cargarImagenPDF(negocio.logo_url);
+      const conFoto = [];
+      const LOTE = 5;
+      for (let i = 0; i < activos.length; i += LOTE) {
+        const grupo = activos.slice(i, i + LOTE);
+        const fotos = await Promise.all(grupo.map((p) => cargarImagenPDF(p.foto_url)));
+        grupo.forEach((p, j) => conFoto.push({ ...p, _foto: fotos[j] }));
+        setProgresoCatalogo((actual) => ({ ...actual, hecho: conFoto.length }));
+      }
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({ unit: "mm", format: "a4" });
       const anchoPagina = doc.internal.pageSize.getWidth();
@@ -669,7 +685,7 @@ Confirma antes que la clienta todavía quiere el pedido.
       doc.save(`catalogo-${negocio.slug || "articulos"}.pdf`);
     } catch (e) {
       console.error("[Panel] error armando el catálogo en PDF:", e);
-      notificar("No se pudo generar el catálogo. Inténtalo de nuevo.");
+      setErrorCatalogo(`No se pudo generar el catálogo: ${e?.message || e}`);
     } finally {
       setGenerandoCatalogo(false);
     }
@@ -890,7 +906,7 @@ Confirma antes que la clienta todavía quiere el pedido.
       onEditar: abrirEdicionReserva,
       onReactivar: reactivarReserva
     }
-  ))))), pestana === "productos" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "admin-title" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "Tu inventario"), /* @__PURE__ */ React.createElement("h1", null, "Artículos")), /* @__PURE__ */ React.createElement("div", { className: "admin-title-acciones" }, /* @__PURE__ */ React.createElement("button", { disabled: generandoCatalogo, onClick: descargarCatalogoPDF }, generandoCatalogo ? "Generando…" : "Catálogo en PDF"), !productoNuevo && /* @__PURE__ */ React.createElement("button", { onClick: abrirFormularioProducto }, "+ Nuevo artículo"))), productoNuevo && /* @__PURE__ */ React.createElement("form", { className: "admin-card producto-form", onSubmit: crearProducto }, /* @__PURE__ */ React.createElement("h3", null, "Nuevo artículo"), /* @__PURE__ */ React.createElement("label", null, "Nombre", /* @__PURE__ */ React.createElement(
+  ))))), pestana === "productos" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "admin-title" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "Tu inventario"), /* @__PURE__ */ React.createElement("h1", null, "Artículos")), /* @__PURE__ */ React.createElement("div", { className: "admin-title-acciones" }, /* @__PURE__ */ React.createElement("button", { disabled: generandoCatalogo, onClick: descargarCatalogoPDF }, generandoCatalogo ? `Generando… ${progresoCatalogo.hecho}/${progresoCatalogo.total}` : "Catálogo en PDF"), !productoNuevo && /* @__PURE__ */ React.createElement("button", { onClick: abrirFormularioProducto }, "+ Nuevo artículo"))), errorCatalogo && /* @__PURE__ */ React.createElement("p", { className: "config-warning" }, errorCatalogo), productoNuevo && /* @__PURE__ */ React.createElement("form", { className: "admin-card producto-form", onSubmit: crearProducto }, /* @__PURE__ */ React.createElement("h3", null, "Nuevo artículo"), /* @__PURE__ */ React.createElement("label", null, "Nombre", /* @__PURE__ */ React.createElement(
     "input",
     {
       autoFocus: true,

@@ -367,6 +367,8 @@ function Panel({ negocioInicial, email }) {
     const [productoNuevo, setProductoNuevo] = useState(null);
     const [creandoProducto, setCreandoProducto] = useState(false);
     const [generandoCatalogo, setGenerandoCatalogo] = useState(false);
+    const [progresoCatalogo, setProgresoCatalogo] = useState({ hecho: 0, total: 0 });
+    const [errorCatalogo, setErrorCatalogo] = useState('');
     const [reservaManual, setReservaManual] = useState(null);
     const [filtroReservas, setFiltroReservas] = useState('todas');
     const [vistaReservas, setVistaReservas] = useState('lista');
@@ -848,13 +850,27 @@ function Panel({ negocioInicial, email }) {
     // diálogo de impresión — así se descarga solo, sin que la dueña tenga
     // que elegir "Guardar como PDF" a mano.
 
+    // Cloudinary puede reducir la foto al vuelo con parámetros en la propia
+    // URL: la miniatura en el PDF mide 34mm, no hace falta bajar la foto
+    // original (puede pesar varios MB en un teléfono). Más rápido de traer
+    // y el PDF final pesa mucho menos — importante si se va a compartir por
+    // WhatsApp con poca señal.
+    function miniaturaCloudinaria(url) {
+        return url && url.includes('res.cloudinary.com')
+            ? url.replace('/image/upload/', '/image/upload/w_300,q_auto,f_auto/')
+            : url;
+    }
+
     /** Trae una imagen como dataURL: jsPDF necesita los bytes, no la URL.
-     * Si falla (sin conexión, imagen borrada, CORS), devuelve null y el
-     * artículo sigue apareciendo en el catálogo, solo que sin foto. */
+     * Si falla (sin conexión, imagen borrada, CORS, o tarda más de 10s),
+     * devuelve null y el artículo sigue apareciendo en el catálogo, solo
+     * que sin foto — nunca revienta el catálogo entero por una imagen. */
     async function cargarImagenPDF(url) {
         if (!url) return null;
+        const cortador = new AbortController();
+        const corte = setTimeout(() => cortador.abort(), 10000);
         try {
-            const res = await fetch(url, { mode: 'cors' });
+            const res = await fetch(miniaturaCloudinaria(url), { mode: 'cors', signal: cortador.signal });
             if (!res.ok) return null;
             const blob = await res.blob();
             return await new Promise((resolve) => {
@@ -866,6 +882,8 @@ function Panel({ negocioInicial, email }) {
         } catch (e) {
             console.warn('[Panel] no se pudo cargar imagen para el PDF:', url, e);
             return null;
+        } finally {
+            clearTimeout(corte);
         }
     }
 
@@ -880,16 +898,28 @@ function Panel({ negocioInicial, email }) {
             return;
         }
         if (!window.jspdf?.jsPDF) {
-            notificar('No se pudo cargar el generador de PDF. Revisa tu conexión e inténtalo de nuevo.');
+            setErrorCatalogo('No se pudo cargar el generador de PDF (jsPDF no está disponible). Revisa tu conexión y vuelve a intentar.');
             return;
         }
 
+        setErrorCatalogo('');
         setGenerandoCatalogo(true);
+        setProgresoCatalogo({ hecho: 0, total: activos.length });
         try {
-            const [conFoto, logo] = await Promise.all([
-                Promise.all(activos.map(async (p) => ({ ...p, _foto: await cargarImagenPDF(p.foto_url) }))),
-                cargarImagenPDF(negocio.logo_url)
-            ]);
+            // De a 5 a la vez, no las 40 juntas ni una por una: en un
+            // teléfono con poca memoria o conexión floja, 40 descargas
+            // simultáneas pueden trabar el navegador sin avisar — pero
+            // una por una tarda demasiado. Así además se ve el progreso
+            // real en vez de un "Generando…" fijo que parece colgado.
+            const logo = await cargarImagenPDF(negocio.logo_url);
+            const conFoto = [];
+            const LOTE = 5;
+            for (let i = 0; i < activos.length; i += LOTE) {
+                const grupo = activos.slice(i, i + LOTE);
+                const fotos = await Promise.all(grupo.map((p) => cargarImagenPDF(p.foto_url)));
+                grupo.forEach((p, j) => conFoto.push({ ...p, _foto: fotos[j] }));
+                setProgresoCatalogo((actual) => ({ ...actual, hecho: conFoto.length }));
+            }
 
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF({ unit: 'mm', format: 'a4' });
@@ -969,8 +999,11 @@ function Panel({ negocioInicial, email }) {
 
             doc.save(`catalogo-${negocio.slug || 'articulos'}.pdf`);
         } catch (e) {
+            // Persistente a propósito (no notificar(), que se borra a los 4s):
+            // si vuelve a fallar, que quede el mensaje exacto para poder
+            // diagnosticarlo, en vez de un aviso que ya desapareció.
             console.error('[Panel] error armando el catálogo en PDF:', e);
-            notificar('No se pudo generar el catálogo. Inténtalo de nuevo.');
+            setErrorCatalogo(`No se pudo generar el catálogo: ${e?.message || e}`);
         } finally {
             setGenerandoCatalogo(false);
         }
@@ -1272,13 +1305,17 @@ function Panel({ negocioInicial, email }) {
                                 </div>
                                 <div className="admin-title-acciones">
                                     <button disabled={generandoCatalogo} onClick={descargarCatalogoPDF}>
-                                        {generandoCatalogo ? 'Generando…' : 'Catálogo en PDF'}
+                                        {generandoCatalogo
+                                            ? `Generando… ${progresoCatalogo.hecho}/${progresoCatalogo.total}`
+                                            : 'Catálogo en PDF'}
                                     </button>
                                     {!productoNuevo && (
                                         <button onClick={abrirFormularioProducto}>+ Nuevo artículo</button>
                                     )}
                                 </div>
                             </div>
+
+                            {errorCatalogo && <p className="config-warning">{errorCatalogo}</p>}
 
                             {productoNuevo && (
                                 <form className="admin-card producto-form" onSubmit={crearProducto}>
