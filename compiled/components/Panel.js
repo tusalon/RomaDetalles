@@ -605,7 +605,6 @@ Confirma antes que la clienta todavía quiere el pedido.
       setErrorCatalogo("No se pudo cargar el generador de PDF (jsPDF no está disponible). Revisa tu conexión y vuelve a intentar.");
       return;
     }
-    if (catalogoListo?.url) URL.revokeObjectURL(catalogoListo.url);
     setCatalogoListo(null);
     setErrorCatalogo("");
     setGenerandoCatalogo(true);
@@ -686,12 +685,19 @@ Confirma antes que la clienta todavía quiere el pedido.
         y += filaAlto;
       });
       const nombreArchivo = `catalogo-${negocio.slug || "articulos"}.pdf`;
-      try {
-        doc.save(nombreArchivo);
-      } catch (e) {
-        console.warn("[Panel] doc.save() automático falló, queda el enlace manual:", e);
+      const ruta = `${negocio.id}/${Date.now()}.pdf`;
+      const subida = await fetch(`${window.SUPABASE_URL}/storage/v1/object/catalogos/${ruta}`, {
+        method: "POST",
+        headers: window.supaHeaders({ "Content-Type": "application/pdf" }),
+        body: doc.output("blob")
+      });
+      if (!subida.ok) {
+        throw new Error(`no se pudo subir el PDF (${subida.status}): ${await subida.text()}`);
       }
-      setCatalogoListo({ url: doc.output("bloburl"), nombre: nombreArchivo });
+      setCatalogoListo({
+        url: `${window.SUPABASE_URL}/storage/v1/object/public/catalogos/${ruta}?download=${encodeURIComponent(nombreArchivo)}`,
+        nombre: nombreArchivo
+      });
     } catch (e) {
       console.error("[Panel] error armando el catálogo en PDF:", e);
       setErrorCatalogo(`No se pudo generar el catálogo: ${e?.message || e}`);
@@ -919,12 +925,21 @@ Confirma antes que la clienta todavía quiere el pedido.
     "a",
     {
       href: catalogoListo.url,
-      download: catalogoListo.nombre,
+      target: "_blank",
+      rel: "noopener",
       style: { color: "var(--burgundy)", fontWeight: 800, textDecoration: "underline" }
     },
-    "Descargar ",
-    catalogoListo.nombre
-  ), " ", "— si no bajó sola, toca aquí."), productoNuevo && /* @__PURE__ */ React.createElement("form", { className: "admin-card producto-form", onSubmit: crearProducto }, /* @__PURE__ */ React.createElement("h3", null, "Nuevo artículo"), /* @__PURE__ */ React.createElement("label", null, "Nombre", /* @__PURE__ */ React.createElement(
+    "Descargar PDF"
+  ), " · ", /* @__PURE__ */ React.createElement(
+    "a",
+    {
+      href: `https://wa.me/?text=${encodeURIComponent(`Catálogo de ${negocio.nombre}: ${catalogoListo.url}`)}`,
+      target: "_blank",
+      rel: "noopener",
+      style: { color: "var(--burgundy)", fontWeight: 800, textDecoration: "underline" }
+    },
+    "Mandar por WhatsApp"
+  )), productoNuevo && /* @__PURE__ */ React.createElement("form", { className: "admin-card producto-form", onSubmit: crearProducto }, /* @__PURE__ */ React.createElement("h3", null, "Nuevo artículo"), /* @__PURE__ */ React.createElement("label", null, "Nombre", /* @__PURE__ */ React.createElement(
     "input",
     {
       autoFocus: true,

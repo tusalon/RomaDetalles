@@ -903,9 +903,6 @@ function Panel({ negocioInicial, email }) {
             return;
         }
 
-        // Si ya había un catálogo armado de antes, libera su blob antes de
-        // reemplazarlo — si no, cada generación deja el anterior en memoria.
-        if (catalogoListo?.url) URL.revokeObjectURL(catalogoListo.url);
         setCatalogoListo(null);
         setErrorCatalogo('');
         setGenerandoCatalogo(true);
@@ -1004,20 +1001,25 @@ function Panel({ negocioInicial, email }) {
 
             const nombreArchivo = `catalogo-${negocio.slug || 'articulos'}.pdf`;
 
-            // jsPDF descarga simulando un clic en un enlace, y ese clic solo
-            // cuenta como "de verdad" mientras el navegador recuerda que la
-            // persona tocó la pantalla hace poco. Con muchas fotos, armar el
-            // catálogo puede tardar lo suficiente como para que ese recuerdo
-            // ya haya expirado — y Android descarta el clic simulado sin
-            // avisar: parece que no pasó nada. Por eso el intento automático
-            // es solo el plan A; el enlace de abajo, que la admin toca ella
-            // misma, es el que de verdad garantiza la descarga.
-            try {
-                doc.save(nombreArchivo);
-            } catch (e) {
-                console.warn('[Panel] doc.save() automático falló, queda el enlace manual:', e);
+            // Nada de descargas desde el propio panel: dentro de la APK no
+            // hay manejador de descargas (ningún enlace blob hace nada), y en
+            // Chrome el clic automático caduca mientras se arman las fotos.
+            // Se sube a Supabase Storage (sql/17) y se da un enlace a
+            // supabase.co: al ser otro dominio, la APK lo abre fuera, en
+            // Chrome, que sí descarga. ?download= fuerza la descarga.
+            const ruta = `${negocio.id}/${Date.now()}.pdf`;
+            const subida = await fetch(`${window.SUPABASE_URL}/storage/v1/object/catalogos/${ruta}`, {
+                method: 'POST',
+                headers: window.supaHeaders({ 'Content-Type': 'application/pdf' }),
+                body: doc.output('blob')
+            });
+            if (!subida.ok) {
+                throw new Error(`no se pudo subir el PDF (${subida.status}): ${await subida.text()}`);
             }
-            setCatalogoListo({ url: doc.output('bloburl'), nombre: nombreArchivo });
+            setCatalogoListo({
+                url: `${window.SUPABASE_URL}/storage/v1/object/public/catalogos/${ruta}?download=${encodeURIComponent(nombreArchivo)}`,
+                nombre: nombreArchivo
+            });
         } catch (e) {
             // Persistente a propósito (no notificar(), que se borra a los 4s):
             // si vuelve a fallar, que quede el mensaje exacto para poder
@@ -1340,11 +1342,16 @@ function Panel({ negocioInicial, email }) {
                             {catalogoListo && (
                                 <p className="mi-reserva-aviso">
                                     Tu catálogo está listo.{' '}
-                                    <a href={catalogoListo.url} download={catalogoListo.nombre}
+                                    <a href={catalogoListo.url} target="_blank" rel="noopener"
                                         style={{ color: 'var(--burgundy)', fontWeight: 800, textDecoration: 'underline' }}>
-                                        Descargar {catalogoListo.nombre}
+                                        Descargar PDF
                                     </a>
-                                    {' '}— si no bajó sola, toca aquí.
+                                    {' · '}
+                                    <a href={`https://wa.me/?text=${encodeURIComponent(`Catálogo de ${negocio.nombre}: ${catalogoListo.url}`)}`}
+                                        target="_blank" rel="noopener"
+                                        style={{ color: 'var(--burgundy)', fontWeight: 800, textDecoration: 'underline' }}>
+                                        Mandar por WhatsApp
+                                    </a>
                                 </p>
                             )}
 
