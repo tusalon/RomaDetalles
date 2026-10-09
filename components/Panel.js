@@ -310,6 +310,9 @@ function TarjetaReserva({ pedido, moneda, onCambiarEstado, onEliminar, onEditar,
                 )}
                 {pedido.notas && <p>📝 {pedido.notas}</p>}
                 {pedido.solicita_domicilio && <p>🚚 Pidió coordinar domicilio</p>}
+                {pedido.servicios_solicitados?.length > 0 && (
+                    <p>🍰 Quiere cotizar: {pedido.servicios_solicitados.join(', ')}</p>
+                )}
             </div>
             <ul>
                 {(pedido.alquiler_pedido_items || []).map((item) => (
@@ -367,6 +370,8 @@ function Panel({ negocioInicial, email }) {
     const [productoNuevo, setProductoNuevo] = useState(null);
     const [creandoProducto, setCreandoProducto] = useState(false);
     const [generandoCatalogo, setGenerandoCatalogo] = useState(false);
+    const [servicios, setServicios] = useState([]);
+    const [subiendoServicio, setSubiendoServicio] = useState(null);
     const [progresoCatalogo, setProgresoCatalogo] = useState({ hecho: 0, total: 0 });
     const [errorCatalogo, setErrorCatalogo] = useState('');
     const [catalogoListo, setCatalogoListo] = useState(null);
@@ -408,7 +413,7 @@ function Panel({ negocioInicial, email }) {
         try {
             const filas = await window.supaGet(
                 `alquiler_pedidos?negocio_id=eq.${negocio.id}&oculto=eq.false` +
-                `&select=id,cliente_nombre,cliente_telefono,fecha_evento,fecha_inicio,fecha_fin,dias,total,anticipo,estado,notas,solicita_domicilio,creado_en,expira_en,` +
+                `&select=id,cliente_nombre,cliente_telefono,fecha_evento,fecha_inicio,fecha_fin,dias,total,anticipo,estado,notas,solicita_domicilio,servicios_solicitados,creado_en,expira_en,` +
                 `alquiler_pedido_items(id,producto_id,producto_nombre,cantidad)` +
                 `&order=creado_en.desc&limit=200`
             );
@@ -427,7 +432,7 @@ function Panel({ negocioInicial, email }) {
             const filas = await window.supaGet(
                 `alquiler_pedidos?negocio_id=eq.${negocio.id}&oculto=eq.false` +
                 `&fecha_evento=gte.${desde}&fecha_evento=lte.${hasta}` +
-                `&select=id,cliente_nombre,cliente_telefono,fecha_evento,fecha_inicio,fecha_fin,dias,total,anticipo,estado,notas,solicita_domicilio,creado_en,expira_en,` +
+                `&select=id,cliente_nombre,cliente_telefono,fecha_evento,fecha_inicio,fecha_fin,dias,total,anticipo,estado,notas,solicita_domicilio,servicios_solicitados,creado_en,expira_en,` +
                 `alquiler_pedido_items(id,producto_id,producto_nombre,cantidad)` +
                 `&order=fecha_evento.asc`
             );
@@ -469,6 +474,19 @@ function Panel({ negocioInicial, email }) {
     }, [pestana, vistaReservas, cargarPedidosDelMes]);
     useEffect(() => { if (pestana === 'ocupacion') cargarOcupacion(); }, [pestana, cargarOcupacion]);
     useEffect(() => { if (pestana === 'galeria') cargarGaleria(); }, [pestana, cargarGaleria]);
+
+    const cargarServicios = useCallback(async () => {
+        try {
+            setServicios(await window.supaGet(
+                `alquiler_servicios?negocio_id=eq.${negocio.id}` +
+                `&select=id,nombre,descripcion,categoria,precio_desde,fotos,activo,orden&order=orden.asc,creado_en.asc`
+            ));
+        } catch (e) {
+            console.error('[Panel] error cargando servicios:', e);
+            notificar('No se pudieron cargar los servicios.');
+        }
+    }, [negocio.id]);
+    useEffect(() => { if (pestana === 'servicios') cargarServicios(); }, [pestana, cargarServicios]);
 
     // Si llegamos desde una notificación (?pedido=RD-...), abrir Reservas.
     useEffect(() => {
@@ -642,6 +660,111 @@ function Panel({ negocioInicial, email }) {
         // Guardamos la foto sola, sin esperar a que pulse Guardar: si cierra
         // el panel después de subirla, la foto no se pierde.
         await guardarProducto({ ...producto, foto_url: subida.url });
+    }
+
+    // ---- Servicios cotizables (catering, cakes, dulces) -----------------
+    // No son artículos: sin stock ni precio cerrado. La clienta los marca
+    // al pedir y la dueña los cotiza por WhatsApp (sql/18).
+    const MAX_FOTOS_SERVICIO = 6;
+
+    async function crearServicio(categoria) {
+        try {
+            const res = await fetch(`${window.SUPABASE_URL}/rest/v1/alquiler_servicios`, {
+                method: 'POST',
+                headers: window.supaHeaders({ Prefer: 'return=representation' }),
+                body: JSON.stringify({
+                    negocio_id: negocio.id,
+                    nombre: categoria === 'Catering' ? 'Servicio de catering' : categoria === 'Cakes' ? 'Cake personalizado' : 'Mesa de dulces',
+                    categoria,
+                    orden: servicios.length
+                })
+            });
+            if (!res.ok) throw new Error(await res.text());
+            const [creado] = await res.json();
+            setServicios((actual) => [...actual, creado]);
+            notificar('Servicio creado. Cámbiale el nombre y súbele fotos.');
+        } catch (e) {
+            console.error('[Panel] error creando servicio:', e);
+            notificar('No se pudo crear el servicio.');
+        }
+    }
+
+    async function guardarServicio(servicio, aviso = true) {
+        const precio = String(servicio.precio_desde ?? '').trim();
+        try {
+            const res = await fetch(
+                `${window.SUPABASE_URL}/rest/v1/alquiler_servicios?id=eq.${servicio.id}`,
+                {
+                    method: 'PATCH',
+                    headers: window.supaHeaders({ Prefer: 'return=minimal' }),
+                    body: JSON.stringify({
+                        nombre: servicio.nombre.trim() || 'Servicio',
+                        descripcion: servicio.descripcion,
+                        categoria: servicio.categoria,
+                        // Vacío = "a cotizar": no se inventa un precio.
+                        precio_desde: precio === '' ? null : Math.max(0, Number(precio) || 0),
+                        fotos: servicio.fotos,
+                        activo: servicio.activo,
+                        actualizado_en: new Date().toISOString()
+                    })
+                }
+            );
+            if (aviso) notificar(res.ok ? `${servicio.nombre} guardado.` : 'No se pudo guardar.');
+            return res.ok;
+        } catch (e) {
+            console.error('[Panel] error guardando servicio:', e);
+            notificar('No se pudo guardar.');
+            return false;
+        }
+    }
+
+    async function eliminarServicio(servicio) {
+        // Se puede borrar de verdad: los pedidos guardan el NOMBRE del
+        // servicio, no una referencia, así que no quedan colgando.
+        if (!window.confirm(`¿Eliminar "${servicio.nombre}"? Las solicitudes anteriores conservan el nombre.`)) return;
+        try {
+            const res = await fetch(
+                `${window.SUPABASE_URL}/rest/v1/alquiler_servicios?id=eq.${servicio.id}`,
+                { method: 'DELETE', headers: window.supaHeaders({ Prefer: 'return=minimal' }) }
+            );
+            if (res.ok) {
+                setServicios((actual) => actual.filter((s) => s.id !== servicio.id));
+                notificar('Servicio eliminado.');
+            } else notificar('No se pudo eliminar.');
+        } catch (e) {
+            console.error('[Panel] error eliminando servicio:', e);
+        }
+    }
+
+    async function agregarFotosServicio(evento, servicio) {
+        const archivos = [...(evento.target.files || [])]
+            .slice(0, MAX_FOTOS_SERVICIO - servicio.fotos.length);
+        evento.target.value = '';
+        if (!archivos.length) return;
+        setSubiendoServicio(servicio.id);
+        const nuevas = [];
+        for (const archivo of archivos) {
+            const subida = await window.subirFotoProducto(archivo, servicio.id);
+            if (subida?.url) nuevas.push(subida.url);
+        }
+        setSubiendoServicio(null);
+        if (!nuevas.length) return;
+        const actualizado = { ...servicio, fotos: [...servicio.fotos, ...nuevas] };
+        setServicios((actual) => actual.map((s) => (s.id === servicio.id ? actualizado : s)));
+        // Se guarda solo, como la foto de artículo: si cierra el panel, no se pierden.
+        if (await guardarServicio(actualizado, false)) {
+            notificar(nuevas.length === 1 ? 'Foto agregada.' : `${nuevas.length} fotos agregadas.`);
+        }
+    }
+
+    async function quitarFotoServicio(servicio, url) {
+        const actualizado = { ...servicio, fotos: servicio.fotos.filter((f) => f !== url) };
+        setServicios((actual) => actual.map((s) => (s.id === servicio.id ? actualizado : s)));
+        await guardarServicio(actualizado, false);
+    }
+
+    function editarServicio(id, cambios) {
+        setServicios((actual) => actual.map((s) => (s.id === id ? { ...s, ...cambios } : s)));
     }
 
     // ---- Galería de muestras -------------------------------------------
@@ -1143,6 +1266,8 @@ function Panel({ negocioInicial, email }) {
                         onClick={() => setPestana('reservas')}>Reservas</button>
                     <button className={pestana === 'productos' ? 'active' : ''}
                         onClick={() => setPestana('productos')}>Artículos</button>
+                    <button className={pestana === 'servicios' ? 'active' : ''}
+                        onClick={() => setPestana('servicios')}>Servicios</button>
                     <button className={pestana === 'ocupacion' ? 'active' : ''}
                         onClick={() => setPestana('ocupacion')}>Ocupación</button>
                     <button className={pestana === 'galeria' ? 'active' : ''}
@@ -1457,6 +1582,89 @@ function Panel({ negocioInicial, email }) {
                                     </article>
                                     );
                                 })}
+                            </div>
+                        </>
+                    )}
+
+                    {/* ---- Servicios ---- */}
+                    {pestana === 'servicios' && (
+                        <>
+                            <div className="admin-title">
+                                <div>
+                                    <p className="eyebrow">Catering, cakes y dulces</p>
+                                    <h1>Servicios</h1>
+                                </div>
+                                <div className="admin-title-acciones">
+                                    <button onClick={() => crearServicio('Catering')}>+ Catering</button>
+                                    <button onClick={() => crearServicio('Cakes')}>+ Cake</button>
+                                    <button onClick={() => crearServicio('Dulces')}>+ Dulces</button>
+                                </div>
+                            </div>
+                            <p className="producto-form-nota">
+                                La clienta los ve en tu tienda con sus fotos y los marca al hacer su pedido.
+                                No suman al total: te llegan en el mensaje de WhatsApp para que los cotices.
+                            </p>
+
+                            <div className="admin-products">
+                                {!servicios.length && (
+                                    <div className="admin-card empty-orders">
+                                        Todavía no tienes servicios. Pulsa «+ Catering», «+ Cake» o «+ Dulces» para empezar.
+                                    </div>
+                                )}
+                                {servicios.map((servicio) => (
+                                    <article className="admin-servicio admin-card" key={servicio.id}
+                                        style={servicio.activo ? undefined : { opacity: .6 }}>
+                                        <div className="product-fields">
+                                            <input value={servicio.nombre}
+                                                onChange={(e) => editarServicio(servicio.id, { nombre: e.target.value })} />
+                                            <textarea placeholder="Qué incluye: sabores, cantidad de personas, montaje…"
+                                                value={servicio.descripcion}
+                                                onChange={(e) => editarServicio(servicio.id, { descripcion: e.target.value })} />
+                                            <div>
+                                                <label>Tipo
+                                                    <select value={servicio.categoria}
+                                                        onChange={(e) => editarServicio(servicio.id, { categoria: e.target.value })}>
+                                                        <option value="Catering">Catering</option>
+                                                        <option value="Cakes">Cakes</option>
+                                                        <option value="Dulces">Dulces</option>
+                                                    </select>
+                                                </label>
+                                                <label>Precio desde (opcional)
+                                                    <input type="number" min="0" inputMode="numeric" placeholder="A cotizar"
+                                                        value={servicio.precio_desde ?? ''}
+                                                        onChange={(e) => editarServicio(servicio.id, { precio_desde: e.target.value })} />
+                                                </label>
+                                            </div>
+                                            <div className="servicio-fotos">
+                                                {servicio.fotos.map((url) => (
+                                                    <figure key={url}>
+                                                        <img src={url} alt="" />
+                                                        <button aria-label="Quitar foto" onClick={() => quitarFotoServicio(servicio, url)}>×</button>
+                                                    </figure>
+                                                ))}
+                                                {servicio.fotos.length < MAX_FOTOS_SERVICIO && (
+                                                    <label className="upload servicio-fotos-agregar">
+                                                        {subiendoServicio === servicio.id
+                                                            ? 'Subiendo…'
+                                                            : `+ Fotos (${servicio.fotos.length}/${MAX_FOTOS_SERVICIO})`}
+                                                        <input type="file" accept="image/*" multiple
+                                                            disabled={subiendoServicio === servicio.id}
+                                                            onChange={(e) => agregarFotosServicio(e, servicio)} />
+                                                    </label>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="product-admin-actions">
+                                            <label>
+                                                <input type="checkbox" checked={servicio.activo}
+                                                    onChange={(e) => editarServicio(servicio.id, { activo: e.target.checked })} />
+                                                {' '}Visible
+                                            </label>
+                                            <button onClick={() => guardarServicio(servicio)}>Guardar</button>
+                                            <button className="danger" onClick={() => eliminarServicio(servicio)}>Eliminar</button>
+                                        </div>
+                                    </article>
+                                ))}
                             </div>
                         </>
                     )}

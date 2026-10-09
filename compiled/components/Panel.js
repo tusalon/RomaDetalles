@@ -149,7 +149,7 @@ function TarjetaReserva({ pedido, moneda, onCambiarEstado, onEliminar, onEditar,
   const puedeEditar = pedido.estado === "pendiente" || pedido.estado === "confirmado";
   const vencida = pedido.estado === "pendiente" && pedido.expira_en && new Date(pedido.expira_en) < /* @__PURE__ */ new Date();
   const puedeReactivar = pedido.estado === "cancelado" || vencida;
-  return /* @__PURE__ */ React.createElement("article", { className: "admin-order admin-card" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("span", { className: `order-chip ${vencida ? "cancelado" : pedido.estado}` }, vencida ? "VENCIDA" : ETIQUETA_ESTADO[pedido.estado] || pedido.estado), vencida && /* @__PURE__ */ React.createElement("p", { className: "reserva-vencida" }, "No llegó el anticipo a tiempo. Sus artículos ya volvieron a estar disponibles, así que pueden estar reservados por otra clienta."), /* @__PURE__ */ React.createElement("h3", null, pedido.cliente_nombre), pedido.dias > 1 ? /* @__PURE__ */ React.createElement("p", null, pedido.id, " · Reserva anterior: ", fechaLargaPanel(pedido.fecha_inicio), " al ", fechaLargaPanel(pedido.fecha_fin), " · ", pedido.dias, " días") : /* @__PURE__ */ React.createElement("p", null, pedido.id, " · Evento: ", fechaLargaPanel(pedido.fecha_evento || pedido.fecha_inicio)), pedido.dias <= 1 && /* @__PURE__ */ React.createElement("p", null, "Recoge el ", fechaLargaPanel(pedido.fecha_inicio), " después de las 5:00 PM"), pedido.cliente_telefono && /* @__PURE__ */ React.createElement("p", null, "📞 ", /* @__PURE__ */ React.createElement("a", { href: `tel:${pedido.cliente_telefono}` }, pedido.cliente_telefono)), pedido.notas && /* @__PURE__ */ React.createElement("p", null, "📝 ", pedido.notas), pedido.solicita_domicilio && /* @__PURE__ */ React.createElement("p", null, "🚚 Pidió coordinar domicilio")), /* @__PURE__ */ React.createElement("ul", null, (pedido.alquiler_pedido_items || []).map((item) => /* @__PURE__ */ React.createElement("li", { key: item.id }, item.cantidad, " × ", item.producto_nombre))), /* @__PURE__ */ React.createElement("div", { className: "order-importes" }, /* @__PURE__ */ React.createElement("strong", null, dineroPanel(pedido.total), " ", moneda), Number(pedido.anticipo) > 0 && /* @__PURE__ */ React.createElement("small", null, "Anticipo: ", dineroPanel(pedido.anticipo), " ", moneda)), /* @__PURE__ */ React.createElement("div", null, pedido.estado === "pendiente" && /* @__PURE__ */ React.createElement("button", { onClick: () => onCambiarEstado(pedido, "confirmado", vencida) }, vencida ? "Confirmar igual" : "Confirmar"), pedido.estado === "confirmado" && /* @__PURE__ */ React.createElement("button", { onClick: () => onCambiarEstado(pedido, "entregado") }, "Entregada"), pedido.estado === "entregado" && /* @__PURE__ */ React.createElement("button", { onClick: () => onCambiarEstado(pedido, "devuelto") }, "Devuelta"), puedeReactivar && /* @__PURE__ */ React.createElement("button", { className: "secondary", onClick: () => onReactivar(pedido) }, "Reactivar"), puedeEditar && /* @__PURE__ */ React.createElement("button", { className: "secondary", onClick: () => onEditar(pedido) }, "Editar"), pedido.estado !== "cancelado" && pedido.estado !== "devuelto" && /* @__PURE__ */ React.createElement("button", { className: "danger", onClick: () => onCambiarEstado(pedido, "cancelado") }, "Cancelar"), puedeEliminar && /* @__PURE__ */ React.createElement("button", { className: "danger", onClick: () => onEliminar(pedido) }, "Eliminar")));
+  return /* @__PURE__ */ React.createElement("article", { className: "admin-order admin-card" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("span", { className: `order-chip ${vencida ? "cancelado" : pedido.estado}` }, vencida ? "VENCIDA" : ETIQUETA_ESTADO[pedido.estado] || pedido.estado), vencida && /* @__PURE__ */ React.createElement("p", { className: "reserva-vencida" }, "No llegó el anticipo a tiempo. Sus artículos ya volvieron a estar disponibles, así que pueden estar reservados por otra clienta."), /* @__PURE__ */ React.createElement("h3", null, pedido.cliente_nombre), pedido.dias > 1 ? /* @__PURE__ */ React.createElement("p", null, pedido.id, " · Reserva anterior: ", fechaLargaPanel(pedido.fecha_inicio), " al ", fechaLargaPanel(pedido.fecha_fin), " · ", pedido.dias, " días") : /* @__PURE__ */ React.createElement("p", null, pedido.id, " · Evento: ", fechaLargaPanel(pedido.fecha_evento || pedido.fecha_inicio)), pedido.dias <= 1 && /* @__PURE__ */ React.createElement("p", null, "Recoge el ", fechaLargaPanel(pedido.fecha_inicio), " después de las 5:00 PM"), pedido.cliente_telefono && /* @__PURE__ */ React.createElement("p", null, "📞 ", /* @__PURE__ */ React.createElement("a", { href: `tel:${pedido.cliente_telefono}` }, pedido.cliente_telefono)), pedido.notas && /* @__PURE__ */ React.createElement("p", null, "📝 ", pedido.notas), pedido.solicita_domicilio && /* @__PURE__ */ React.createElement("p", null, "🚚 Pidió coordinar domicilio"), pedido.servicios_solicitados?.length > 0 && /* @__PURE__ */ React.createElement("p", null, "🍰 Quiere cotizar: ", pedido.servicios_solicitados.join(", "))), /* @__PURE__ */ React.createElement("ul", null, (pedido.alquiler_pedido_items || []).map((item) => /* @__PURE__ */ React.createElement("li", { key: item.id }, item.cantidad, " × ", item.producto_nombre))), /* @__PURE__ */ React.createElement("div", { className: "order-importes" }, /* @__PURE__ */ React.createElement("strong", null, dineroPanel(pedido.total), " ", moneda), Number(pedido.anticipo) > 0 && /* @__PURE__ */ React.createElement("small", null, "Anticipo: ", dineroPanel(pedido.anticipo), " ", moneda)), /* @__PURE__ */ React.createElement("div", null, pedido.estado === "pendiente" && /* @__PURE__ */ React.createElement("button", { onClick: () => onCambiarEstado(pedido, "confirmado", vencida) }, vencida ? "Confirmar igual" : "Confirmar"), pedido.estado === "confirmado" && /* @__PURE__ */ React.createElement("button", { onClick: () => onCambiarEstado(pedido, "entregado") }, "Entregada"), pedido.estado === "entregado" && /* @__PURE__ */ React.createElement("button", { onClick: () => onCambiarEstado(pedido, "devuelto") }, "Devuelta"), puedeReactivar && /* @__PURE__ */ React.createElement("button", { className: "secondary", onClick: () => onReactivar(pedido) }, "Reactivar"), puedeEditar && /* @__PURE__ */ React.createElement("button", { className: "secondary", onClick: () => onEditar(pedido) }, "Editar"), pedido.estado !== "cancelado" && pedido.estado !== "devuelto" && /* @__PURE__ */ React.createElement("button", { className: "danger", onClick: () => onCambiarEstado(pedido, "cancelado") }, "Cancelar"), puedeEliminar && /* @__PURE__ */ React.createElement("button", { className: "danger", onClick: () => onEliminar(pedido) }, "Eliminar")));
 }
 function Panel({ negocioInicial, email }) {
   const [pestana, setPestana] = useState("reservas");
@@ -164,6 +164,8 @@ function Panel({ negocioInicial, email }) {
   const [productoNuevo, setProductoNuevo] = useState(null);
   const [creandoProducto, setCreandoProducto] = useState(false);
   const [generandoCatalogo, setGenerandoCatalogo] = useState(false);
+  const [servicios, setServicios] = useState([]);
+  const [subiendoServicio, setSubiendoServicio] = useState(null);
   const [progresoCatalogo, setProgresoCatalogo] = useState({ hecho: 0, total: 0 });
   const [errorCatalogo, setErrorCatalogo] = useState("");
   const [catalogoListo, setCatalogoListo] = useState(null);
@@ -197,7 +199,7 @@ function Panel({ negocioInicial, email }) {
   const cargarPedidos = useCallback(async () => {
     try {
       const filas = await window.supaGet(
-        `alquiler_pedidos?negocio_id=eq.${negocio.id}&oculto=eq.false&select=id,cliente_nombre,cliente_telefono,fecha_evento,fecha_inicio,fecha_fin,dias,total,anticipo,estado,notas,solicita_domicilio,creado_en,expira_en,alquiler_pedido_items(id,producto_id,producto_nombre,cantidad)&order=creado_en.desc&limit=200`
+        `alquiler_pedidos?negocio_id=eq.${negocio.id}&oculto=eq.false&select=id,cliente_nombre,cliente_telefono,fecha_evento,fecha_inicio,fecha_fin,dias,total,anticipo,estado,notas,solicita_domicilio,servicios_solicitados,creado_en,expira_en,alquiler_pedido_items(id,producto_id,producto_nombre,cantidad)&order=creado_en.desc&limit=200`
       );
       setPedidos(filas);
     } catch (e) {
@@ -211,7 +213,7 @@ function Panel({ negocioInicial, email }) {
     const hasta = `${mesCalendario}-${String(new Date(anio, mes, 0).getDate()).padStart(2, "0")}`;
     try {
       const filas = await window.supaGet(
-        `alquiler_pedidos?negocio_id=eq.${negocio.id}&oculto=eq.false&fecha_evento=gte.${desde}&fecha_evento=lte.${hasta}&select=id,cliente_nombre,cliente_telefono,fecha_evento,fecha_inicio,fecha_fin,dias,total,anticipo,estado,notas,solicita_domicilio,creado_en,expira_en,alquiler_pedido_items(id,producto_id,producto_nombre,cantidad)&order=fecha_evento.asc`
+        `alquiler_pedidos?negocio_id=eq.${negocio.id}&oculto=eq.false&fecha_evento=gte.${desde}&fecha_evento=lte.${hasta}&select=id,cliente_nombre,cliente_telefono,fecha_evento,fecha_inicio,fecha_fin,dias,total,anticipo,estado,notas,solicita_domicilio,servicios_solicitados,creado_en,expira_en,alquiler_pedido_items(id,producto_id,producto_nombre,cantidad)&order=fecha_evento.asc`
       );
       setPedidosMes(filas);
     } catch (e) {
@@ -254,6 +256,19 @@ function Panel({ negocioInicial, email }) {
   useEffect(() => {
     if (pestana === "galeria") cargarGaleria();
   }, [pestana, cargarGaleria]);
+  const cargarServicios = useCallback(async () => {
+    try {
+      setServicios(await window.supaGet(
+        `alquiler_servicios?negocio_id=eq.${negocio.id}&select=id,nombre,descripcion,categoria,precio_desde,fotos,activo,orden&order=orden.asc,creado_en.asc`
+      ));
+    } catch (e) {
+      console.error("[Panel] error cargando servicios:", e);
+      notificar("No se pudieron cargar los servicios.");
+    }
+  }, [negocio.id]);
+  useEffect(() => {
+    if (pestana === "servicios") cargarServicios();
+  }, [pestana, cargarServicios]);
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("pedido")) {
       setPestana("reservas");
@@ -406,6 +421,97 @@ function Panel({ negocioInicial, email }) {
     if (!subida) return;
     setProductos((actual) => actual.map((p) => p.id === producto.id ? { ...p, foto_url: subida.url } : p));
     await guardarProducto({ ...producto, foto_url: subida.url });
+  }
+  const MAX_FOTOS_SERVICIO = 6;
+  async function crearServicio(categoria) {
+    try {
+      const res = await fetch(`${window.SUPABASE_URL}/rest/v1/alquiler_servicios`, {
+        method: "POST",
+        headers: window.supaHeaders({ Prefer: "return=representation" }),
+        body: JSON.stringify({
+          negocio_id: negocio.id,
+          nombre: categoria === "Catering" ? "Servicio de catering" : categoria === "Cakes" ? "Cake personalizado" : "Mesa de dulces",
+          categoria,
+          orden: servicios.length
+        })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const [creado] = await res.json();
+      setServicios((actual) => [...actual, creado]);
+      notificar("Servicio creado. Cámbiale el nombre y súbele fotos.");
+    } catch (e) {
+      console.error("[Panel] error creando servicio:", e);
+      notificar("No se pudo crear el servicio.");
+    }
+  }
+  async function guardarServicio(servicio, aviso2 = true) {
+    const precio = String(servicio.precio_desde ?? "").trim();
+    try {
+      const res = await fetch(
+        `${window.SUPABASE_URL}/rest/v1/alquiler_servicios?id=eq.${servicio.id}`,
+        {
+          method: "PATCH",
+          headers: window.supaHeaders({ Prefer: "return=minimal" }),
+          body: JSON.stringify({
+            nombre: servicio.nombre.trim() || "Servicio",
+            descripcion: servicio.descripcion,
+            categoria: servicio.categoria,
+            // Vacío = "a cotizar": no se inventa un precio.
+            precio_desde: precio === "" ? null : Math.max(0, Number(precio) || 0),
+            fotos: servicio.fotos,
+            activo: servicio.activo,
+            actualizado_en: (/* @__PURE__ */ new Date()).toISOString()
+          })
+        }
+      );
+      if (aviso2) notificar(res.ok ? `${servicio.nombre} guardado.` : "No se pudo guardar.");
+      return res.ok;
+    } catch (e) {
+      console.error("[Panel] error guardando servicio:", e);
+      notificar("No se pudo guardar.");
+      return false;
+    }
+  }
+  async function eliminarServicio(servicio) {
+    if (!window.confirm(`¿Eliminar "${servicio.nombre}"? Las solicitudes anteriores conservan el nombre.`)) return;
+    try {
+      const res = await fetch(
+        `${window.SUPABASE_URL}/rest/v1/alquiler_servicios?id=eq.${servicio.id}`,
+        { method: "DELETE", headers: window.supaHeaders({ Prefer: "return=minimal" }) }
+      );
+      if (res.ok) {
+        setServicios((actual) => actual.filter((s) => s.id !== servicio.id));
+        notificar("Servicio eliminado.");
+      } else notificar("No se pudo eliminar.");
+    } catch (e) {
+      console.error("[Panel] error eliminando servicio:", e);
+    }
+  }
+  async function agregarFotosServicio(evento, servicio) {
+    const archivos = [...evento.target.files || []].slice(0, MAX_FOTOS_SERVICIO - servicio.fotos.length);
+    evento.target.value = "";
+    if (!archivos.length) return;
+    setSubiendoServicio(servicio.id);
+    const nuevas = [];
+    for (const archivo of archivos) {
+      const subida = await window.subirFotoProducto(archivo, servicio.id);
+      if (subida?.url) nuevas.push(subida.url);
+    }
+    setSubiendoServicio(null);
+    if (!nuevas.length) return;
+    const actualizado = { ...servicio, fotos: [...servicio.fotos, ...nuevas] };
+    setServicios((actual) => actual.map((s) => s.id === servicio.id ? actualizado : s));
+    if (await guardarServicio(actualizado, false)) {
+      notificar(nuevas.length === 1 ? "Foto agregada." : `${nuevas.length} fotos agregadas.`);
+    }
+  }
+  async function quitarFotoServicio(servicio, url) {
+    const actualizado = { ...servicio, fotos: servicio.fotos.filter((f) => f !== url) };
+    setServicios((actual) => actual.map((s) => s.id === servicio.id ? actualizado : s));
+    await guardarServicio(actualizado, false);
+  }
+  function editarServicio(id, cambios) {
+    setServicios((actual) => actual.map((s) => s.id === id ? { ...s, ...cambios } : s));
   }
   async function agregarFotoGaleria(evento) {
     const archivo = evento.target.files?.[0];
@@ -802,6 +908,13 @@ Confirma antes que la clienta todavía quiere el pedido.
   ), /* @__PURE__ */ React.createElement(
     "button",
     {
+      className: pestana === "servicios" ? "active" : "",
+      onClick: () => setPestana("servicios")
+    },
+    "Servicios"
+  ), /* @__PURE__ */ React.createElement(
+    "button",
+    {
       className: pestana === "ocupacion" ? "active" : "",
       onClick: () => setPestana("ocupacion")
     },
@@ -1051,7 +1164,64 @@ Confirma antes que la clienta todavía quiere el pedido.
         }
       ), " ", "Visible"), /* @__PURE__ */ React.createElement("button", { onClick: () => guardarProducto(producto) }, "Guardar"), /* @__PURE__ */ React.createElement("button", { className: "danger", onClick: () => ocultarProducto(producto) }, "Quitar"))
     );
-  }))), pestana === "ocupacion" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "admin-title" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "Qué te está produciendo"), /* @__PURE__ */ React.createElement("h1", null, "Ocupación"))), /* @__PURE__ */ React.createElement("div", { className: "admin-card push-card" }, /* @__PURE__ */ React.createElement("p", null, "Días que estuvo alquilado cada artículo en el período elegido. Lo de arriba es lo que más te produce; lo de abajo, lo que te está ocupando espacio. Cada evento cuenta 3 días: la víspera que se recoge, el día del evento, y la mañana que se entrega."), /* @__PURE__ */ React.createElement("div", { className: "dates", style: { maxWidth: "360px" } }, /* @__PURE__ */ React.createElement("label", null, "Desde", /* @__PURE__ */ React.createElement(
+  }))), pestana === "servicios" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "admin-title" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "Catering, cakes y dulces"), /* @__PURE__ */ React.createElement("h1", null, "Servicios")), /* @__PURE__ */ React.createElement("div", { className: "admin-title-acciones" }, /* @__PURE__ */ React.createElement("button", { onClick: () => crearServicio("Catering") }, "+ Catering"), /* @__PURE__ */ React.createElement("button", { onClick: () => crearServicio("Cakes") }, "+ Cake"), /* @__PURE__ */ React.createElement("button", { onClick: () => crearServicio("Dulces") }, "+ Dulces"))), /* @__PURE__ */ React.createElement("p", { className: "producto-form-nota" }, "La clienta los ve en tu tienda con sus fotos y los marca al hacer su pedido. No suman al total: te llegan en el mensaje de WhatsApp para que los cotices."), /* @__PURE__ */ React.createElement("div", { className: "admin-products" }, !servicios.length && /* @__PURE__ */ React.createElement("div", { className: "admin-card empty-orders" }, "Todavía no tienes servicios. Pulsa «+ Catering», «+ Cake» o «+ Dulces» para empezar."), servicios.map((servicio) => /* @__PURE__ */ React.createElement(
+    "article",
+    {
+      className: "admin-servicio admin-card",
+      key: servicio.id,
+      style: servicio.activo ? void 0 : { opacity: 0.6 }
+    },
+    /* @__PURE__ */ React.createElement("div", { className: "product-fields" }, /* @__PURE__ */ React.createElement(
+      "input",
+      {
+        value: servicio.nombre,
+        onChange: (e) => editarServicio(servicio.id, { nombre: e.target.value })
+      }
+    ), /* @__PURE__ */ React.createElement(
+      "textarea",
+      {
+        placeholder: "Qué incluye: sabores, cantidad de personas, montaje…",
+        value: servicio.descripcion,
+        onChange: (e) => editarServicio(servicio.id, { descripcion: e.target.value })
+      }
+    ), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", null, "Tipo", /* @__PURE__ */ React.createElement(
+      "select",
+      {
+        value: servicio.categoria,
+        onChange: (e) => editarServicio(servicio.id, { categoria: e.target.value })
+      },
+      /* @__PURE__ */ React.createElement("option", { value: "Catering" }, "Catering"),
+      /* @__PURE__ */ React.createElement("option", { value: "Cakes" }, "Cakes"),
+      /* @__PURE__ */ React.createElement("option", { value: "Dulces" }, "Dulces")
+    )), /* @__PURE__ */ React.createElement("label", null, "Precio desde (opcional)", /* @__PURE__ */ React.createElement(
+      "input",
+      {
+        type: "number",
+        min: "0",
+        inputMode: "numeric",
+        placeholder: "A cotizar",
+        value: servicio.precio_desde ?? "",
+        onChange: (e) => editarServicio(servicio.id, { precio_desde: e.target.value })
+      }
+    ))), /* @__PURE__ */ React.createElement("div", { className: "servicio-fotos" }, servicio.fotos.map((url) => /* @__PURE__ */ React.createElement("figure", { key: url }, /* @__PURE__ */ React.createElement("img", { src: url, alt: "" }), /* @__PURE__ */ React.createElement("button", { "aria-label": "Quitar foto", onClick: () => quitarFotoServicio(servicio, url) }, "×"))), servicio.fotos.length < MAX_FOTOS_SERVICIO && /* @__PURE__ */ React.createElement("label", { className: "upload servicio-fotos-agregar" }, subiendoServicio === servicio.id ? "Subiendo…" : `+ Fotos (${servicio.fotos.length}/${MAX_FOTOS_SERVICIO})`, /* @__PURE__ */ React.createElement(
+      "input",
+      {
+        type: "file",
+        accept: "image/*",
+        multiple: true,
+        disabled: subiendoServicio === servicio.id,
+        onChange: (e) => agregarFotosServicio(e, servicio)
+      }
+    )))),
+    /* @__PURE__ */ React.createElement("div", { className: "product-admin-actions" }, /* @__PURE__ */ React.createElement("label", null, /* @__PURE__ */ React.createElement(
+      "input",
+      {
+        type: "checkbox",
+        checked: servicio.activo,
+        onChange: (e) => editarServicio(servicio.id, { activo: e.target.checked })
+      }
+    ), " ", "Visible"), /* @__PURE__ */ React.createElement("button", { onClick: () => guardarServicio(servicio) }, "Guardar"), /* @__PURE__ */ React.createElement("button", { className: "danger", onClick: () => eliminarServicio(servicio) }, "Eliminar"))
+  )))), pestana === "ocupacion" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "admin-title" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "Qué te está produciendo"), /* @__PURE__ */ React.createElement("h1", null, "Ocupación"))), /* @__PURE__ */ React.createElement("div", { className: "admin-card push-card" }, /* @__PURE__ */ React.createElement("p", null, "Días que estuvo alquilado cada artículo en el período elegido. Lo de arriba es lo que más te produce; lo de abajo, lo que te está ocupando espacio. Cada evento cuenta 3 días: la víspera que se recoge, el día del evento, y la mañana que se entrega."), /* @__PURE__ */ React.createElement("div", { className: "dates", style: { maxWidth: "360px" } }, /* @__PURE__ */ React.createElement("label", null, "Desde", /* @__PURE__ */ React.createElement(
     "input",
     {
       type: "date",

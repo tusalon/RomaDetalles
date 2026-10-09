@@ -93,6 +93,7 @@ const PLANTILLA_SOLICITUD_POR_DEFECTO =
   "\n" +
   "💰 Total: {total}\n" +
   "{anticipo}\n" +
+  "{servicios}\n" +
   "{politica_seguro}\n" +
   "{domicilio}\n" +
   "👤 Cliente: {nombre}\n" +
@@ -122,6 +123,7 @@ function armarMensajeSolicitud(
     notas: string;
     politicaSeguro: string;
     solicitaDomicilio: boolean;
+    servicios: string[];
     tarjeta: string;
     telefonoPago: string;
     enlaceReserva: string;
@@ -159,7 +161,8 @@ function armarMensajeSolicitud(
     .replaceAll("{telefono}", datos.telefono ? `📞 ${datos.telefono}` : "")
     .replaceAll("{notas}", datos.notas ? `📝 ${datos.notas}` : "")
     .replaceAll("{politica_seguro}", datos.politicaSeguro ? `⚠️ ${datos.politicaSeguro}` : "")
-    .replaceAll("{domicilio}", datos.solicitaDomicilio ? "🚚 La clienta pidió coordinar servicio a domicilio." : "");
+    .replaceAll("{domicilio}", datos.solicitaDomicilio ? "🚚 La clienta pidió coordinar servicio a domicilio." : "")
+    .replaceAll("{servicios}", datos.servicios.length ? `🍰 Quiere cotizar: ${datos.servicios.join(", ")}` : "");
 
   return texto.replace(/\n{3,}/g, "\n\n").trim();
 }
@@ -189,6 +192,10 @@ Deno.serve(async (req) => {
   const telefono = texto(body.cliente_telefono, 40);
   const notas = texto(body.notas, 500);
   const solicitaDomicilio = body.solicita_domicilio === true;
+  // Ids de servicios a cotizar; se validan contra el negocio más abajo.
+  const serviciosIds: string[] = Array.isArray(body.servicios)
+    ? [...new Set(body.servicios.map((x: unknown) => texto(x, 40)).filter(Boolean))].slice(0, 20) as string[]
+    : [];
 
   if (!nombre) return json({ error: "Escribe tu nombre para continuar." }, 400);
   if (!esFecha(body.fecha_evento)) {
@@ -270,6 +277,25 @@ Deno.serve(async (req) => {
     });
   }
 
+  // Servicios a cotizar: solo los activos de ESTE negocio (un id ajeno o
+  // inventado se descarta), y se guardan por nombre, congelados.
+  let servicios: string[] = [];
+  if (serviciosIds.length) {
+    const lista = serviciosIds.map((id) => encodeURIComponent(id)).join(",");
+    const srvRes = await fetch(
+      `${supabaseUrl}/rest/v1/alquiler_servicios?id=in.(${lista})&negocio_id=eq.${negocio.id}&activo=eq.true&select=nombre&order=orden.asc`,
+      { headers: auth },
+    );
+    servicios = srvRes.ok ? (await srvRes.json()).map((x: { nombre: string }) => x.nombre) : [];
+    if (servicios.length) {
+      await fetch(`${supabaseUrl}/rest/v1/alquiler_pedidos?id=eq.${pedido.id}`, {
+        method: "PATCH",
+        headers: auth,
+        body: JSON.stringify({ servicios_solicitados: servicios }),
+      });
+    }
+  }
+
   // ---- Líneas del pedido (para WhatsApp y para el push) -------------
   const itemsRes = await fetch(
     `${supabaseUrl}/rest/v1/alquiler_pedido_items?pedido_id=eq.${encodeURIComponent(pedido.id)}&select=producto_nombre,precio_dia,cantidad`,
@@ -294,6 +320,7 @@ Deno.serve(async (req) => {
     notas,
     politicaSeguro: negocio.politica_seguro || "",
     solicitaDomicilio,
+    servicios,
     tarjeta: negocio.pago_tarjeta || "",
     telefonoPago: negocio.pago_telefono || "",
     enlaceReserva: `https://tusalon.github.io/RomaDetalles/index.html?reserva=${pedido.token_acceso}`,

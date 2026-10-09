@@ -205,6 +205,27 @@ h1,h2,h3,p { text-wrap: pretty; }
 .footer a { text-decoration:underline; text-underline-offset:4px; }
 
 /* --- Galería de muestras (tienda pública) ----------------------------- */
+/* Servicios cotizables (tienda): tarjeta con carrusel de fotos deslizable. */
+.servicios-publicos { padding-block:100px 20px; }
+.servicios-publicos .intro { color:var(--muted); margin:12px auto 0; max-width:520px; }
+.servicios-grid { display:grid; gap:22px; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); margin-top:46px; }
+.servicio-card { background:white; border:1px solid var(--border); border-radius:18px; overflow:hidden; transition:border-color .2s, box-shadow .2s; }
+.servicio-card.elegido { border-color:var(--burgundy); box-shadow:0 0 0 2px var(--burgundy); }
+.servicio-carrusel { display:flex; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; }
+.servicio-carrusel::-webkit-scrollbar { display:none; }
+.servicio-carrusel button { background:none; border:0; cursor:zoom-in; flex:0 0 100%; padding:0; scroll-snap-align:start; }
+.servicio-carrusel img { aspect-ratio:4/3; display:block; object-fit:cover; width:100%; }
+.servicio-contador { color:var(--muted); display:block; font-size:11px; padding:8px 18px 0; }
+.servicio-info { display:grid; gap:8px; padding:16px 18px 18px; }
+.servicio-tipo { color:var(--coral); font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+.servicio-info h3 { color:var(--burgundy); font-family:var(--serif); font-size:22px; margin:0; }
+.servicio-info p { color:var(--muted); font-size:14px; line-height:1.5; margin:0; }
+.servicio-info strong { color:var(--ink); font-size:15px; }
+.servicio-cotizar { background:var(--cream); border:1.5px solid var(--burgundy); border-radius:10px; color:var(--burgundy); cursor:pointer; font-weight:800; margin-top:6px; min-height:46px; }
+.servicio-cotizar[aria-pressed="true"] { background:var(--burgundy); color:white; }
+.servicios-elegidos p { align-items:center; display:flex; justify-content:space-between; }
+.servicios-elegidos p button { background:none; border:0; color:var(--muted); cursor:pointer; font-size:18px; min-height:32px; min-width:32px; }
+.servicio-whatsapp { background:#1f9b63; border-radius:10px; color:white; display:block; font-weight:800; margin-top:10px; padding:12px; text-align:center; text-decoration:none; }
 .galeria-publica { padding-block:100px; }
 .galeria-publica-grid { column-gap:18px; columns:3; margin-top:50px; }
 .galeria-publica-item { background:none; border:0; break-inside:avoid; cursor:pointer; display:block; margin-bottom:18px; padding:0; position:relative; width:100%; }
@@ -325,6 +346,15 @@ h1,h2,h3,p { text-wrap: pretty; }
 .product-fields > div { display:grid; gap:10px; grid-template-columns:1.2fr 1fr .8fr .9fr; }
 .product-fields .upload { background:var(--lilac); border-radius:8px; color:var(--purple); cursor:pointer; padding:9px 12px; width:fit-content; }
 .product-fields .upload input { display:none; }
+/* Servicios (panel): sin foto lateral, las fotos van en su propia fila. */
+.admin-servicio { align-items:start; display:grid; gap:20px; grid-template-columns:1fr auto; padding:18px; }
+.admin-servicio .product-fields > div { grid-template-columns:1fr 1fr; }
+.admin-servicio select { background:white; border:1px solid var(--border); border-radius:8px; display:block; margin-top:6px; min-height:43px; padding:9px 11px; width:100%; }
+.admin-servicio .product-fields > .servicio-fotos { display:flex; flex-wrap:wrap; gap:10px; }
+.servicio-fotos figure { height:88px; margin:0; position:relative; width:88px; }
+.servicio-fotos img { border-radius:10px; height:100%; object-fit:cover; width:100%; }
+.servicio-fotos figure button { align-items:center; background:var(--burgundy); border:2px solid white; border-radius:50%; color:white; cursor:pointer; display:flex; font-size:16px; height:26px; justify-content:center; padding:0; position:absolute; right:-8px; top:-8px; width:26px; }
+.servicio-fotos-agregar { align-items:center; display:flex !important; height:88px; justify-content:center; text-align:center; width:88px !important; }
 .product-admin-actions { align-items:stretch; display:flex; flex-direction:column; gap:8px; min-width:92px; }
 .product-admin-actions label { font-size:11px; padding:6px 0; }
 .product-admin-actions button.danger,.admin-order button.danger { background:var(--ocupado-bg); color:var(--ocupado); }

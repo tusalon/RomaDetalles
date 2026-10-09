@@ -119,6 +119,8 @@ function Tienda() {
     const [tiendas, setTiendas] = useState(null);
     const [negocio, setNegocio] = useState(null);
     const [productos, setProductos] = useState([]);
+    const [servicios, setServicios] = useState([]);
+    const [aCotizar, setACotizar] = useState([]);   // ids de servicios marcados
     const [galeria, setGaleria] = useState([]);
     const [fotoAmpliada, setFotoAmpliada] = useState(null);
 
@@ -222,7 +224,7 @@ function Tienda() {
                         .forEach((l) => { l.href = icono; });
                 }
 
-                const [items, fotos] = await Promise.all([
+                const [items, fotos, srv] = await Promise.all([
                     window.supaGet(
                         `alquiler_productos?negocio_id=eq.${neg.id}&activo=eq.true` +
                         `&select=id,nombre,descripcion,categoria,precio_dia,cantidad,foto_url&order=orden.asc,creado_en.asc`
@@ -233,10 +235,18 @@ function Tienda() {
                     ).catch((e) => {
                         console.warn('[Tienda] galería no disponible:', e);
                         return []; // la galería es un extra: si falla, la tienda sigue vendiendo
+                    }),
+                    window.supaGet(
+                        `alquiler_servicios?negocio_id=eq.${neg.id}&activo=eq.true` +
+                        `&select=id,nombre,descripcion,categoria,precio_desde,fotos&order=orden.asc,creado_en.asc`
+                    ).catch((e) => {
+                        console.warn('[Tienda] servicios no disponibles:', e);
+                        return []; // igual que la galería: un extra que no tumba la tienda
                     })
                 ]);
                 setProductos(items);
                 setGaleria(fotos);
+                setServicios(srv);
             } catch (e) {
                 console.error('[Tienda] error cargando:', e);
                 setErrorCarga('No se pudo cargar la tienda. Revisa tu conexión.');
@@ -331,6 +341,24 @@ function Tienda() {
         });
     }
 
+    // ---- Servicios a cotizar -------------------------------------------
+    // No van al carrito ni al total: se marcan y viajan con el pedido (o
+    // por WhatsApp directo si la clienta no alquila nada).
+    const serviciosElegidos = servicios.filter((s) => aCotizar.includes(s.id));
+
+    function alternarCotizar(id) {
+        setACotizar((actual) => (actual.includes(id) ? actual.filter((x) => x !== id) : [...actual, id]));
+    }
+
+    function enlaceCotizarWhatsApp() {
+        const numero = (negocio.whatsapp || '').replace(/\D/g, '');
+        if (!numero) return null;
+        const lineas = [`Hola, quiero cotizar: ${serviciosElegidos.map((s) => s.nombre).join(', ')}`];
+        if (hayFecha) lineas.push(`📅 Evento: ${fechaLarga(fechaEvento)}`);
+        if (nombre.trim()) lineas.push(`👤 ${nombre.trim()}`);
+        return `https://wa.me/${numero}?text=${encodeURIComponent(lineas.join('\n'))}`;
+    }
+
     // ---- Enviar el pedido ---------------------------------------------
     async function enviarPedido(evento) {
         evento.preventDefault();
@@ -358,6 +386,7 @@ function Tienda() {
                         cliente_telefono: telefono.trim(),
                         notas: notas.trim(),
                         solicita_domicilio: solicitaDomicilio,
+                        servicios: aCotizar,
                         fecha_evento: fechaEvento,
                         items: enCarrito.map((p) => ({
                             producto_id: p.id,
@@ -446,6 +475,7 @@ function Tienda() {
                 <nav>
                     <a href="#inicio">Inicio</a>
                     <a href="#catalogo">Catálogo</a>
+                    {servicios.length > 0 && <a href="#servicios">Servicios</a>}
                     <a href="#como">Cómo funciona</a>
                 </nav>
                 <button className="cart-trigger" onClick={() => setCajonAbierto(true)}>
@@ -588,6 +618,46 @@ function Tienda() {
                 </div>
             </section>
 
+            {servicios.length > 0 && (
+                <section className="servicios-publicos shell" id="servicios">
+                    <div className="center-head">
+                        <p className="eyebrow">Para completar tu evento</p>
+                        <h2>Catering, cakes y dulces</h2>
+                        <p className="intro">Márcalos y te enviamos la cotización por WhatsApp junto con tu pedido.</p>
+                    </div>
+                    <div className="servicios-grid">
+                        {servicios.map((s) => {
+                            const elegido = aCotizar.includes(s.id);
+                            return (
+                                <article className={`servicio-card${elegido ? ' elegido' : ''}`} key={s.id}>
+                                    {s.fotos.length > 0 && (
+                                        <div className="servicio-carrusel" tabIndex={0}
+                                            aria-label={`Fotos de ${s.nombre}${s.fotos.length > 1 ? ', desliza para ver más' : ''}`}>
+                                            {s.fotos.map((url, i) => (
+                                                <button key={url} onClick={() => setFotoAmpliada({ imagen_url: url, descripcion: s.nombre })}
+                                                    aria-label={`Ampliar foto ${i + 1} de ${s.nombre}`}>
+                                                    <img src={url} alt="" loading="lazy" />
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {s.fotos.length > 1 && <small className="servicio-contador">{s.fotos.length} fotos · desliza</small>}
+                                    <div className="servicio-info">
+                                        <small className="servicio-tipo">{s.categoria}</small>
+                                        <h3>{s.nombre}</h3>
+                                        {s.descripcion && <p>{s.descripcion}</p>}
+                                        <strong>{s.precio_desde != null ? `Desde ${dinero(s.precio_desde)} ${moneda}` : 'A cotizar'}</strong>
+                                        <button className="servicio-cotizar" aria-pressed={elegido} onClick={() => alternarCotizar(s.id)}>
+                                            {elegido ? '✓ Lo quiero cotizar' : 'Quiero cotizarlo'}
+                                        </button>
+                                    </div>
+                                </article>
+                            );
+                        })}
+                    </div>
+                </section>
+            )}
+
             <section className="how shell" id="como">
                 <div className="center-head">
                     <p className="eyebrow">Simple y transparente</p>
@@ -631,9 +701,13 @@ function Tienda() {
                 </div>
             </footer>
 
-            {totalArticulos > 0 && !cajonAbierto && (
+            {(totalArticulos > 0 || aCotizar.length > 0) && !cajonAbierto && (
                 <button className="continuar-barra" onClick={() => setCajonAbierto(true)}>
-                    <span>{totalArticulos} {totalArticulos === 1 ? 'artículo' : 'artículos'} · {dinero(totalPedido)} {moneda}</span>
+                    <span>
+                        {totalArticulos > 0
+                            ? `${totalArticulos} ${totalArticulos === 1 ? 'artículo' : 'artículos'} · ${dinero(totalPedido)} ${moneda}`
+                            : `${aCotizar.length} ${aCotizar.length === 1 ? 'servicio' : 'servicios'} a cotizar`}
+                    </span>
                     <b>Continuar →</b>
                 </button>
             )}
@@ -650,12 +724,35 @@ function Tienda() {
                     {hayFecha && (
                         <p className="drawer-date">◫ Evento: {fechaLarga(fechaEvento)} · recoges el {fechaLarga(inicioRango)} después de las 5:00 PM</p>
                     )}
-                    {!enCarrito.length ? (
-                        <div className="empty">
-                            <span>✦</span>
-                            <h3>Tu combo empieza aquí</h3>
-                            <p>Agrega los artículos que harán único tu evento.</p>
+                    {serviciosElegidos.length > 0 && (
+                        <div className="datos-recogida servicios-elegidos">
+                            <strong>Servicios a cotizar</strong>
+                            {serviciosElegidos.map((s) => (
+                                <p key={s.id}>
+                                    {s.nombre}
+                                    <button onClick={() => alternarCotizar(s.id)} aria-label={`Quitar ${s.nombre}`}>×</button>
+                                </p>
+                            ))}
+                            <small>
+                                {enCarrito.length
+                                    ? 'Van en tu pedido; el negocio te los cotiza por WhatsApp. No suman al total.'
+                                    : 'Si no vas a alquilar artículos, pide la cotización directo:'}
+                            </small>
+                            {!enCarrito.length && enlaceCotizarWhatsApp() && (
+                                <a className="servicio-whatsapp" href={enlaceCotizarWhatsApp()} target="_blank" rel="noopener">
+                                    Pedir cotización por WhatsApp
+                                </a>
+                            )}
                         </div>
+                    )}
+                    {!enCarrito.length ? (
+                        !serviciosElegidos.length && (
+                            <div className="empty">
+                                <span>✦</span>
+                                <h3>Tu combo empieza aquí</h3>
+                                <p>Agrega los artículos que harán único tu evento.</p>
+                            </div>
+                        )
                     ) : (
                         <>
                             {enCarrito.map((producto) => (
