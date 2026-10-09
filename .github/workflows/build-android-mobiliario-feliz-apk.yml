@@ -1,0 +1,111 @@
+name: Build APK Mobiliario Feliz
+
+# La misma cáscara de Capacitor que la APK de RomaDetalles (carga el panel
+# desde GitHub Pages), pero como app APARTE con la marca de Mobiliario
+# Feliz: otro nombre de paquete (se instala al lado, no reemplaza a la de
+# RomaDetalles), su nombre, sus íconos y su pantalla de carga.
+#
+# No hay un proyecto Android duplicado: este workflow toma android/ tal
+# cual y le pone encima marcas/mobiliario-feliz/res (generado con
+# marcas/mobiliario-feliz/generar-android.py) antes de compilar. Así un
+# arreglo en la cáscara llega a las dos APK.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - 'capacitor.config.json'
+      - 'www-shell/**'
+      - 'marcas/mobiliario-feliz/**'
+      - '.github/workflows/build-android-mobiliario-feliz-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write # para publicar/actualizar el Release con la APK
+
+env:
+  PAQUETE: com.mobiliariofeliz.admin
+  NOMBRE: Mobiliario Feliz
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Instalar dependencias de Capacitor
+        run: npm install --no-save @capacitor/core @capacitor/cli @capacitor/android @capacitor/push-notifications
+
+      - name: Ponerle la marca de Mobiliario Feliz
+        run: |
+          cp -r marcas/mobiliario-feliz/res/. android/app/src/main/res/
+          sed -i "s/applicationId \"com.romadetalles.admin\"/applicationId \"$PAQUETE\"/" android/app/build.gradle
+          grep -q "applicationId \"$PAQUETE\"" android/app/build.gradle || { echo "::error::No se pudo cambiar applicationId"; exit 1; }
+          node -e "
+            const f = 'capacitor.config.json';
+            const c = JSON.parse(require('fs').readFileSync(f, 'utf8'));
+            c.appId = process.env.PAQUETE;
+            c.appName = process.env.NOMBRE;
+            require('fs').writeFileSync(f, JSON.stringify(c, null, 2));
+          "
+
+      # Firebase identifica la app por su nombre de paquete. Con un
+      # google-services.json que no incluya com.mobiliariofeliz.admin, el
+      # plugin de Gradle ROMPE la compilación, así que solo se pone si lo
+      # trae. Sirve un secreto propio o el compartido, si en Firebase se
+      # agregó esta app al mismo proyecto (el JSON trae las dos).
+      - name: Poner google-services.json (solo si incluye esta app)
+        env:
+          JSON_PROPIO: ${{ secrets.GOOGLE_SERVICES_JSON_MOBILIARIO_FELIZ }}
+          JSON_COMPARTIDO: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          JSON="${JSON_PROPIO:-$JSON_COMPARTIDO}"
+          if [ -n "$JSON" ] && printf '%s' "$JSON" | grep -q "\"$PAQUETE\""; then
+            printf '%s' "$JSON" > android/app/google-services.json
+            node -e "
+              const f = 'capacitor.config.json';
+              const c = JSON.parse(require('fs').readFileSync(f, 'utf8'));
+              c.appendUserAgent = ((c.appendUserAgent || '') + ' romadetalles-push-fcm').trim();
+              require('fs').writeFileSync(f, JSON.stringify(c, null, 2));
+            "
+            echo "google-services.json escrito: la APK saldrá con avisos."
+          else
+            echo "::warning::Firebase todavía no conoce $PAQUETE — la APK saldrá SIN avisos push (el panel funciona igual)."
+          fi
+
+      - name: Sincronizar el proyecto Android
+        run: npx cap sync android
+
+      - name: Compilar APK debug
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Preparar el archivo para descargar
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk mobiliario-feliz.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mobiliario-feliz-apk
+          path: mobiliario-feliz.apk
+
+      - name: Publicar como Release descargable
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: mobiliario-feliz-apk
+          name: Mobiliario Feliz — APK
+          body: >
+            Panel de Mobiliario Feliz como app propia. Se instala aparte de la
+            APK de RomaDetalles. Se reemplaza en cada build con la versión más
+            reciente; el panel en sí vive en GitHub Pages y se actualiza solo.
+          files: mobiliario-feliz.apk
