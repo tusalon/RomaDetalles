@@ -52,6 +52,12 @@ function slugDeLaUrl() {
   const params = new URLSearchParams(window.location.search);
   return params.get("s") || window.ALQUILER_SLUG_POR_DEFECTO || "";
 }
+function miniaturaLogo(url, lado) {
+  return url && url.includes("res.cloudinary.com") ? url.replace("/image/upload/", `/image/upload/w_${lado},h_${lado},c_fill,q_auto,f_auto/`) : url;
+}
+function MarcaNegocio({ negocio }) {
+  return negocio.logo_url ? /* @__PURE__ */ React.createElement("img", { src: miniaturaLogo(negocio.logo_url, 96), alt: "" }) : /* @__PURE__ */ React.createElement("span", null, "✦");
+}
 function Tienda() {
   const [cargando, setCargando] = useState(true);
   const [errorCarga, setErrorCarga] = useState("");
@@ -104,7 +110,7 @@ function Tienda() {
     (async () => {
       try {
         const negocios = await window.supaGet(
-          `alquiler_negocios?slug=eq.${encodeURIComponent(slug)}&activo=eq.true&select=id,slug,nombre,titulo_bienvenida,texto_bienvenida,whatsapp,moneda,instagram_url,facebook_url,anticipo_porciento,anticipo_redondear,pago_tarjeta,pago_telefono,direccion,horas_reserva,ofrece_domicilio`
+          `alquiler_negocios?slug=eq.${encodeURIComponent(slug)}&activo=eq.true&select=id,slug,nombre,titulo_bienvenida,texto_bienvenida,whatsapp,moneda,instagram_url,facebook_url,anticipo_porciento,anticipo_redondear,pago_tarjeta,pago_telefono,direccion,horas_reserva,ofrece_domicilio,logo_url`
         );
         if (!negocios.length) {
           setErrorCarga("No encontramos esta tienda. Revisa el enlace.");
@@ -113,6 +119,13 @@ function Tienda() {
         }
         const neg = negocios[0];
         setNegocio(neg);
+        document.title = `${neg.nombre} — Alquiler para eventos`;
+        if (neg.logo_url) {
+          const icono = miniaturaLogo(neg.logo_url, 192);
+          document.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"]').forEach((l) => {
+            l.href = icono;
+          });
+        }
         const [items, fotos] = await Promise.all([
           window.supaGet(
             `alquiler_productos?negocio_id=eq.${neg.id}&activo=eq.true&select=id,nombre,descripcion,categoria,precio_dia,cantidad,foto_url&order=orden.asc,creado_en.asc`
@@ -275,7 +288,7 @@ function Tienda() {
     return /* @__PURE__ */ React.createElement("div", { className: "empty", style: { minHeight: "100dvh", justifyContent: "center" } }, /* @__PURE__ */ React.createElement("span", null, "✦"), /* @__PURE__ */ React.createElement("h3", null, errorCarga), /* @__PURE__ */ React.createElement("p", null, "Si crees que es un error, pide el enlace al negocio."));
   }
   const moneda = negocio.moneda || "CUP";
-  return /* @__PURE__ */ React.createElement("main", null, /* @__PURE__ */ React.createElement("header", { className: "header" }, /* @__PURE__ */ React.createElement("a", { className: "brand", href: "#inicio" }, /* @__PURE__ */ React.createElement("span", null, "✦"), " ", negocio.nombre), /* @__PURE__ */ React.createElement("nav", null, /* @__PURE__ */ React.createElement("a", { href: "#inicio" }, "Inicio"), /* @__PURE__ */ React.createElement("a", { href: "#catalogo" }, "Catálogo"), /* @__PURE__ */ React.createElement("a", { href: "#como" }, "Cómo funciona")), /* @__PURE__ */ React.createElement("button", { className: "cart-trigger", onClick: () => setCajonAbierto(true) }, /* @__PURE__ */ React.createElement(
+  return /* @__PURE__ */ React.createElement("main", null, /* @__PURE__ */ React.createElement("header", { className: "header" }, /* @__PURE__ */ React.createElement("a", { className: "brand", href: "#inicio" }, /* @__PURE__ */ React.createElement(MarcaNegocio, { negocio }), " ", negocio.nombre), /* @__PURE__ */ React.createElement("nav", null, /* @__PURE__ */ React.createElement("a", { href: "#inicio" }, "Inicio"), /* @__PURE__ */ React.createElement("a", { href: "#catalogo" }, "Catálogo"), /* @__PURE__ */ React.createElement("a", { href: "#como" }, "Cómo funciona")), /* @__PURE__ */ React.createElement("button", { className: "cart-trigger", onClick: () => setCajonAbierto(true) }, /* @__PURE__ */ React.createElement(
     "svg",
     {
       viewBox: "0 0 24 24",
@@ -341,7 +354,7 @@ function Tienda() {
     },
     /* @__PURE__ */ React.createElement("img", { src: foto.imagen_url, alt: "", loading: "lazy" }),
     foto.descripcion && /* @__PURE__ */ React.createElement("span", null, foto.descripcion)
-  )))), /* @__PURE__ */ React.createElement("footer", { className: "footer shell" }, /* @__PURE__ */ React.createElement("span", { className: "brand" }, /* @__PURE__ */ React.createElement("i", null, "✦"), " ", negocio.nombre), /* @__PURE__ */ React.createElement("p", null, "Decoraciones que convierten un día especial en un gran recuerdo."), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "18px" } }, negocio.instagram_url && /* @__PURE__ */ React.createElement("a", { href: negocio.instagram_url, target: "_blank", rel: "noopener" }, "Instagram"), negocio.facebook_url && /* @__PURE__ */ React.createElement("a", { href: negocio.facebook_url, target: "_blank", rel: "noopener" }, "Facebook"))), totalArticulos > 0 && !cajonAbierto && /* @__PURE__ */ React.createElement("button", { className: "continuar-barra", onClick: () => setCajonAbierto(true) }, /* @__PURE__ */ React.createElement("span", null, totalArticulos, " ", totalArticulos === 1 ? "artículo" : "artículos", " · ", dinero(totalPedido), " ", moneda), /* @__PURE__ */ React.createElement("b", null, "Continuar →")), cajonAbierto && /* @__PURE__ */ React.createElement("button", { className: "overlay", "aria-label": "Cerrar", onClick: () => setCajonAbierto(false) }), /* @__PURE__ */ React.createElement("aside", { className: `drawer ${cajonAbierto ? "open" : ""}` }, /* @__PURE__ */ React.createElement("div", { className: "drawer-head" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("small", null, "Tu selección"), /* @__PURE__ */ React.createElement("h2", null, "Mi pedido")), /* @__PURE__ */ React.createElement("button", { onClick: () => setCajonAbierto(false), "aria-label": "Cerrar" }, "×")), /* @__PURE__ */ React.createElement("div", { className: "drawer-content" }, hayFecha && /* @__PURE__ */ React.createElement("p", { className: "drawer-date" }, "◫ Evento: ", fechaLarga(fechaEvento), " · recoges el ", fechaLarga(inicioRango), " después de las 5:00 PM"), !enCarrito.length ? /* @__PURE__ */ React.createElement("div", { className: "empty" }, /* @__PURE__ */ React.createElement("span", null, "✦"), /* @__PURE__ */ React.createElement("h3", null, "Tu combo empieza aquí"), /* @__PURE__ */ React.createElement("p", null, "Agrega los artículos que harán único tu evento.")) : /* @__PURE__ */ React.createElement(React.Fragment, null, enCarrito.map((producto) => /* @__PURE__ */ React.createElement("div", { className: "cart-line", key: producto.id }, /* @__PURE__ */ React.createElement("img", { src: producto.foto_url || "images/producto-arco.png", alt: "" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("strong", null, producto.nombre), /* @__PURE__ */ React.createElement("small", null, dinero(producto.precio_dia), " ", moneda)), /* @__PURE__ */ React.createElement("div", { className: "qty" }, /* @__PURE__ */ React.createElement("button", { onClick: () => quitar(producto), "aria-label": "Quitar uno" }, "−"), /* @__PURE__ */ React.createElement("span", null, carrito[producto.id]), /* @__PURE__ */ React.createElement(
+  )))), /* @__PURE__ */ React.createElement("footer", { className: "footer shell" }, /* @__PURE__ */ React.createElement("span", { className: "brand" }, /* @__PURE__ */ React.createElement(MarcaNegocio, { negocio }), " ", negocio.nombre), /* @__PURE__ */ React.createElement("p", null, "Decoraciones que convierten un día especial en un gran recuerdo."), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "18px" } }, negocio.instagram_url && /* @__PURE__ */ React.createElement("a", { href: negocio.instagram_url, target: "_blank", rel: "noopener" }, "Instagram"), negocio.facebook_url && /* @__PURE__ */ React.createElement("a", { href: negocio.facebook_url, target: "_blank", rel: "noopener" }, "Facebook"))), totalArticulos > 0 && !cajonAbierto && /* @__PURE__ */ React.createElement("button", { className: "continuar-barra", onClick: () => setCajonAbierto(true) }, /* @__PURE__ */ React.createElement("span", null, totalArticulos, " ", totalArticulos === 1 ? "artículo" : "artículos", " · ", dinero(totalPedido), " ", moneda), /* @__PURE__ */ React.createElement("b", null, "Continuar →")), cajonAbierto && /* @__PURE__ */ React.createElement("button", { className: "overlay", "aria-label": "Cerrar", onClick: () => setCajonAbierto(false) }), /* @__PURE__ */ React.createElement("aside", { className: `drawer ${cajonAbierto ? "open" : ""}` }, /* @__PURE__ */ React.createElement("div", { className: "drawer-head" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("small", null, "Tu selección"), /* @__PURE__ */ React.createElement("h2", null, "Mi pedido")), /* @__PURE__ */ React.createElement("button", { onClick: () => setCajonAbierto(false), "aria-label": "Cerrar" }, "×")), /* @__PURE__ */ React.createElement("div", { className: "drawer-content" }, hayFecha && /* @__PURE__ */ React.createElement("p", { className: "drawer-date" }, "◫ Evento: ", fechaLarga(fechaEvento), " · recoges el ", fechaLarga(inicioRango), " después de las 5:00 PM"), !enCarrito.length ? /* @__PURE__ */ React.createElement("div", { className: "empty" }, /* @__PURE__ */ React.createElement("span", null, "✦"), /* @__PURE__ */ React.createElement("h3", null, "Tu combo empieza aquí"), /* @__PURE__ */ React.createElement("p", null, "Agrega los artículos que harán único tu evento.")) : /* @__PURE__ */ React.createElement(React.Fragment, null, enCarrito.map((producto) => /* @__PURE__ */ React.createElement("div", { className: "cart-line", key: producto.id }, /* @__PURE__ */ React.createElement("img", { src: producto.foto_url || "images/producto-arco.png", alt: "" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("strong", null, producto.nombre), /* @__PURE__ */ React.createElement("small", null, dinero(producto.precio_dia), " ", moneda)), /* @__PURE__ */ React.createElement("div", { className: "qty" }, /* @__PURE__ */ React.createElement("button", { onClick: () => quitar(producto), "aria-label": "Quitar uno" }, "−"), /* @__PURE__ */ React.createElement("span", null, carrito[producto.id]), /* @__PURE__ */ React.createElement(
     "button",
     {
       onClick: () => agregar(producto),

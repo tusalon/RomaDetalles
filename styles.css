@@ -71,6 +71,8 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
 }
 .brand { align-items: center; color: var(--burgundy); display: flex; font-family: var(--serif); font-size: 30px; font-weight: 600; gap: 9px; width: fit-content; }
 .brand > span, .brand > i { align-items: center; background: linear-gradient(135deg,var(--coral),var(--purple)); border-radius: 50%; color: white; display: flex; font-family: var(--sans); font-size: 18px; font-style: normal; height: 38px; justify-content: center; width: 38px; }
+/* Logo propio del negocio: ocupa el mismo círculo que el ✦ de la plataforma. */
+.brand > img { border-radius: 50%; flex: none; height: 38px; object-fit: cover; width: 38px; }
 .header nav { display: flex; gap: 42px; }
 .header nav a { font-size: 14px; font-weight: 700; }
 .cart-trigger { align-items:center; background: var(--burgundy); border: 0; border-radius: 999px; color: white; cursor: pointer; display:flex; gap:9px; justify-self: end; padding: 8px 8px 8px 18px; }

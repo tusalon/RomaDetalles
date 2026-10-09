@@ -99,6 +99,20 @@ function slugDeLaUrl() {
     return params.get('s') || window.ALQUILER_SLUG_POR_DEFECTO || '';
 }
 
+// El logo que el negocio sube en Configuración, recortado cuadrado y en el
+// tamaño justo vía Cloudinary (en vez de bajar la foto entera por un ícono).
+function miniaturaLogo(url, lado) {
+    return url && url.includes('res.cloudinary.com')
+        ? url.replace('/image/upload/', `/image/upload/w_${lado},h_${lado},c_fill,q_auto,f_auto/`)
+        : url;
+}
+
+function MarcaNegocio({ negocio }) {
+    return negocio.logo_url
+        ? <img src={miniaturaLogo(negocio.logo_url, 96)} alt="" />
+        : <span>✦</span>;
+}
+
 function Tienda() {
     const [cargando, setCargando] = useState(true);
     const [errorCarga, setErrorCarga] = useState('');
@@ -170,7 +184,7 @@ function Tienda() {
                 const negocios = await window.supaGet(
                     `alquiler_negocios?slug=eq.${encodeURIComponent(slug)}&activo=eq.true` +
                     `&select=id,slug,nombre,titulo_bienvenida,texto_bienvenida,whatsapp,moneda,instagram_url,facebook_url,` +
-                    `anticipo_porciento,anticipo_redondear,pago_tarjeta,pago_telefono,direccion,horas_reserva,ofrece_domicilio`
+                    `anticipo_porciento,anticipo_redondear,pago_tarjeta,pago_telefono,direccion,horas_reserva,ofrece_domicilio,logo_url`
                 );
                 if (!negocios.length) {
                     setErrorCarga('No encontramos esta tienda. Revisa el enlace.');
@@ -179,6 +193,15 @@ function Tienda() {
                 }
                 const neg = negocios[0];
                 setNegocio(neg);
+
+                // Cada tienda con su nombre y su ícono en la pestaña, no los de
+                // la plataforma. Sin logo, se queda el ícono por defecto.
+                document.title = `${neg.nombre} — Alquiler para eventos`;
+                if (neg.logo_url) {
+                    const icono = miniaturaLogo(neg.logo_url, 192);
+                    document.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"]')
+                        .forEach((l) => { l.href = icono; });
+                }
 
                 const [items, fotos] = await Promise.all([
                     window.supaGet(
@@ -380,7 +403,7 @@ function Tienda() {
     return (
         <main>
             <header className="header">
-                <a className="brand" href="#inicio"><span>✦</span> {negocio.nombre}</a>
+                <a className="brand" href="#inicio"><MarcaNegocio negocio={negocio} /> {negocio.nombre}</a>
                 <nav>
                     <a href="#inicio">Inicio</a>
                     <a href="#catalogo">Catálogo</a>
@@ -561,7 +584,7 @@ function Tienda() {
             )}
 
             <footer className="footer shell">
-                <span className="brand"><i>✦</i> {negocio.nombre}</span>
+                <span className="brand"><MarcaNegocio negocio={negocio} /> {negocio.nombre}</span>
                 <p>Decoraciones que convierten un día especial en un gran recuerdo.</p>
                 <div style={{ display: 'flex', gap: '18px' }}>
                     {negocio.instagram_url && <a href={negocio.instagram_url} target="_blank" rel="noopener">Instagram</a>}
