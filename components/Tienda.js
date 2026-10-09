@@ -116,6 +116,7 @@ function MarcaNegocio({ negocio }) {
 function Tienda() {
     const [cargando, setCargando] = useState(true);
     const [errorCarga, setErrorCarga] = useState('');
+    const [tiendas, setTiendas] = useState(null);
     const [negocio, setNegocio] = useState(null);
     const [productos, setProductos] = useState([]);
     const [galeria, setGaleria] = useState([]);
@@ -174,8 +175,26 @@ function Tienda() {
     useEffect(() => {
         const slug = slugDeLaUrl();
         if (!slug) {
-            setErrorCarga('Falta indicar la tienda en el enlace.');
-            setCargando(false);
+            // Sin ?s= no se cae en una tienda fija (antes era la demo de
+            // Romitu, sin forma de salir): se elige entre las que venden.
+            (async () => {
+                try {
+                    const filas = await window.supaGet(
+                        'alquiler_negocios?activo=eq.true&select=slug,nombre,logo_url,alquiler_productos(count)' +
+                        '&alquiler_productos.activo=eq.true&order=nombre.asc'
+                    );
+                    const conArticulos = filas.filter((t) => t.alquiler_productos?.[0]?.count > 0);
+                    if (conArticulos.length === 1) {
+                        window.location.replace(`index.html?s=${encodeURIComponent(conArticulos[0].slug)}`);
+                        return;
+                    }
+                    setTiendas(conArticulos);
+                } catch (e) {
+                    console.error('[Tienda] error cargando tiendas:', e);
+                    setErrorCarga('No se pudieron cargar las tiendas. Revisa tu conexión.');
+                }
+                setCargando(false);
+            })();
             return;
         }
 
@@ -396,6 +415,26 @@ function Tienda() {
             <h3>{errorCarga}</h3>
             <p>Si crees que es un error, pide el enlace al negocio.</p>
         </div>;
+    }
+
+    if (tiendas) {
+        return (
+            <main className="selector-tiendas">
+                <h1>Elige una tienda</h1>
+                {!tiendas.length && <p>Todavía no hay tiendas con artículos.</p>}
+                <ul>
+                    {tiendas.map((t) => (
+                        <li key={t.slug}>
+                            <a className="brand" href={`index.html?s=${encodeURIComponent(t.slug)}`}>
+                                <MarcaNegocio negocio={t} />
+                                <strong>{t.nombre.trim()}</strong>
+                                <small>{t.alquiler_productos[0].count} artículos</small>
+                            </a>
+                        </li>
+                    ))}
+                </ul>
+            </main>
+        );
     }
 
     const moneda = negocio.moneda || 'CUP';

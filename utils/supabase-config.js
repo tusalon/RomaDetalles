@@ -17,9 +17,11 @@ window.SUPABASE_ANON_KEY = SUPABASE_ANON_KEY;
 window.CLOUDINARY_CLOUD_NAME = 'uyvla7fj';
 window.CLOUDINARY_UPLOAD_PRESET = 'romahub_productos';
 
-// Negocio por defecto cuando la URL no trae ?s=slug. Sirve para que la
-// tienda de un cliente pueda vivir en su propio enlace corto sin parámetros.
-window.ALQUILER_SLUG_POR_DEFECTO = 'roma-detalles';
+// Negocio por defecto cuando la URL no trae ?s=slug. Vacío a propósito: con
+// varias tiendas, la dirección sola muestra un selector en vez de meter a
+// todo el mundo en una (antes era la demo 'roma-detalles', sin salida).
+// Poner un slug aquí solo si este despliegue es de un único negocio.
+window.ALQUILER_SLUG_POR_DEFECTO = '';
 
 // Edge Function que crea los pedidos. La tienda NUNCA inserta pedidos
 // directo: la anon key no tiene permiso, a propósito.

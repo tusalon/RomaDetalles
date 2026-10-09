@@ -3,7 +3,7 @@
   "short_name": "RomaDetalles",
   "description": "Alquila decoración para tu evento: elige fechas, arma tu combo y confirma por WhatsApp.",
   "start_url": "/RomaDetalles/admin.html",
-  "scope": "/RomaDetalles/",
+  "scope": "/RomaDetalles/admin",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#111827",

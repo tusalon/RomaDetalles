@@ -61,6 +61,7 @@ function MarcaNegocio({ negocio }) {
 function Tienda() {
   const [cargando, setCargando] = useState(true);
   const [errorCarga, setErrorCarga] = useState("");
+  const [tiendas, setTiendas] = useState(null);
   const [negocio, setNegocio] = useState(null);
   const [productos, setProductos] = useState([]);
   const [galeria, setGaleria] = useState([]);
@@ -103,8 +104,23 @@ function Tienda() {
   useEffect(() => {
     const slug = slugDeLaUrl();
     if (!slug) {
-      setErrorCarga("Falta indicar la tienda en el enlace.");
-      setCargando(false);
+      (async () => {
+        try {
+          const filas = await window.supaGet(
+            "alquiler_negocios?activo=eq.true&select=slug,nombre,logo_url,alquiler_productos(count)&alquiler_productos.activo=eq.true&order=nombre.asc"
+          );
+          const conArticulos = filas.filter((t) => t.alquiler_productos?.[0]?.count > 0);
+          if (conArticulos.length === 1) {
+            window.location.replace(`index.html?s=${encodeURIComponent(conArticulos[0].slug)}`);
+            return;
+          }
+          setTiendas(conArticulos);
+        } catch (e) {
+          console.error("[Tienda] error cargando tiendas:", e);
+          setErrorCarga("No se pudieron cargar las tiendas. Revisa tu conexión.");
+        }
+        setCargando(false);
+      })();
       return;
     }
     (async () => {
@@ -286,6 +302,9 @@ function Tienda() {
   }
   if (errorCarga) {
     return /* @__PURE__ */ React.createElement("div", { className: "empty", style: { minHeight: "100dvh", justifyContent: "center" } }, /* @__PURE__ */ React.createElement("span", null, "✦"), /* @__PURE__ */ React.createElement("h3", null, errorCarga), /* @__PURE__ */ React.createElement("p", null, "Si crees que es un error, pide el enlace al negocio."));
+  }
+  if (tiendas) {
+    return /* @__PURE__ */ React.createElement("main", { className: "selector-tiendas" }, /* @__PURE__ */ React.createElement("h1", null, "Elige una tienda"), !tiendas.length && /* @__PURE__ */ React.createElement("p", null, "Todavía no hay tiendas con artículos."), /* @__PURE__ */ React.createElement("ul", null, tiendas.map((t) => /* @__PURE__ */ React.createElement("li", { key: t.slug }, /* @__PURE__ */ React.createElement("a", { className: "brand", href: `index.html?s=${encodeURIComponent(t.slug)}` }, /* @__PURE__ */ React.createElement(MarcaNegocio, { negocio: t }), /* @__PURE__ */ React.createElement("strong", null, t.nombre.trim()), /* @__PURE__ */ React.createElement("small", null, t.alquiler_productos[0].count, " artículos"))))));
   }
   const moneda = negocio.moneda || "CUP";
   return /* @__PURE__ */ React.createElement("main", null, /* @__PURE__ */ React.createElement("header", { className: "header" }, /* @__PURE__ */ React.createElement("a", { className: "brand", href: "#inicio" }, /* @__PURE__ */ React.createElement(MarcaNegocio, { negocio }), " ", negocio.nombre), /* @__PURE__ */ React.createElement("nav", null, /* @__PURE__ */ React.createElement("a", { href: "#inicio" }, "Inicio"), /* @__PURE__ */ React.createElement("a", { href: "#catalogo" }, "Catálogo"), /* @__PURE__ */ React.createElement("a", { href: "#como" }, "Cómo funciona")), /* @__PURE__ */ React.createElement("button", { className: "cart-trigger", onClick: () => setCajonAbierto(true) }, /* @__PURE__ */ React.createElement(
